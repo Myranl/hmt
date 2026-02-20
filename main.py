@@ -1,11 +1,10 @@
 from pipeline.batch import process_folder
 from pathlib import Path
 from pipeline.batch import process_paths
-from ui.folier_select import run_folder_and_selection_ui
+from ui.selection_folder.main_selection import run_folder_and_selection_ui
 
 
 if __name__ == "__main__":
-#    process_folder(input_dir, out_dir, interactive=True)
 
     res = run_folder_and_selection_ui()
     if res is None:

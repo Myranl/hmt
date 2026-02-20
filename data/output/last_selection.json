@@ -1,9 +1,10 @@
 {
-  "input_dir": "/Users/kseniialavrova/PycharmProjects/HIPOCA/HISTO/data/input",
-  "output_dir": "/Users/kseniialavrova/PycharmProjects/HIPOCA/HISTO/data/output",
+  "input_dir": "/Users/kseniialavrova/PycharmProjects/HMT/data/input",
+  "output_dir": "/Users/kseniialavrova/PycharmProjects/HMT/data/output",
   "selected": [
-    "/Users/kseniialavrova/PycharmProjects/HIPOCA/HISTO/data/input/TileScan 019_T05_5.tif",
-    "/Users/kseniialavrova/PycharmProjects/HIPOCA/HISTO/data/input/TileScan 023_Z10_3.tif",
-    "/Users/kseniialavrova/PycharmProjects/HIPOCA/HISTO/data/input/TileScan 025_M13_5.tif"
+    "/Users/kseniialavrova/PycharmProjects/HMT/data/input/TileScan 001_X12_1.tif",
+    "/Users/kseniialavrova/PycharmProjects/HMT/data/input/TileScan 019_T05_5.tif",
+    "/Users/kseniialavrova/PycharmProjects/HMT/data/input/TileScan 023_Z10_3.tif",
+    "/Users/kseniialavrova/PycharmProjects/HMT/data/input/TileScan 025_M13_5.tif"
   ]
 }

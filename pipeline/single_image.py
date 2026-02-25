@@ -42,7 +42,9 @@ def process_one_image(
 
     # --- Step 0: fast brain mask (done first, so we can restrict everything else) ---
     gray_fast = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY).astype(np.float32) / 255.0
+    print("DEBUG: calling brain_mask_threshold_ui")
     bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+    print("DEBUG: brain_mask_threshold_ui returned", type(bm_res), "accepted" if bm_res else "None")
     if bm_res is None:
         return {"image_path": str(image_path), "status": "skipped"}
 

@@ -1,11 +1,26 @@
 from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any
-
 import cv2
 import numpy as np
 
+from ui.brain_mask.mask_utils import _ensure_rgb_u8, _perimeter_px, _safe_display_overlay
+from ui.brain_mask.mask_compute import compute_mask
+
+@dataclass
+class BrainMaskUIContext:
+    gray_u8: np.ndarray
+    rgb: np.ndarray
+    window: str
+    scale: float
+    pad: int
+    pad_ui: int
+    seed_r_ui: int
+    close_r_ui: int
+    open_r_ui: int
+
+    def _sc(self, v: int) -> int:
+        return int(max(1, round(int(v) * self.scale))) if v > 0 else 0
 
 @dataclass
 class BrainMaskUIResult:
@@ -13,95 +28,35 @@ class BrainMaskUIResult:
     params: dict[str, Any]
 
 
-def _gray_to_u8(gray: np.ndarray) -> np.ndarray:
-    """Accept float [0..1] or uint8 and return uint8 grayscale."""
-    if gray.dtype == np.uint8:
-        return gray
-    g = np.asarray(gray)
-    if g.ndim != 2:
-        raise ValueError("gray must be a 2D array")
-    g = np.clip(g, 0.0, 1.0)
-    return (g * 255.0 + 0.5).astype(np.uint8)
+def render(ctx: BrainMaskUIContext, thr_eff: int, thr_base: int, pad_extra: int) -> tuple[np.ndarray, np.ndarray]:
+    pad_eff_ui = int(max(0, ctx.pad_ui + ctx._sc(pad_extra)))
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff_ui=pad_eff_ui, close_r_ui=ctx.close_r_ui, open_r_ui=ctx.open_r_ui, seed_r_ui=ctx.seed_r_ui,)
+    disp = ctx.rgb.copy()  # RGB
 
+    # no fill overlay (keeps tissue texture visible). We only draw the boundary.
 
-def _ensure_rgb_u8(img: np.ndarray) -> np.ndarray:
-    """Return uint8 RGB image for display."""
-    a = np.asarray(img)
-    if a.ndim == 2:
-        a = cv2.cvtColor(_gray_to_u8(a), cv2.COLOR_GRAY2BGR)
-        a = cv2.cvtColor(a, cv2.COLOR_BGR2RGB)
-    elif a.ndim == 3 and a.shape[2] == 3:
-        if a.dtype != np.uint8:
-            a = np.clip(a, 0, 255).astype(np.uint8)
-        # assume already RGB
-    else:
-        raise ValueError("img2 must be HxW or HxWx3")
-    return a
-
-
-def _largest_component_near_center(bin_u8: np.ndarray, *, center: tuple[int, int], seed_r: int) -> np.ndarray:
-    """Pick a single connected component that overlaps a center seed region; fallback to largest."""
-    fg = (bin_u8 > 0).astype(np.uint8)
-    num, lab, stats, _ = cv2.connectedComponentsWithStats(fg, connectivity=8)
-    if num <= 1:
-        return np.zeros_like(fg, dtype=np.uint8)
-
-    cy, cx = center
-    seed = np.zeros_like(fg, dtype=np.uint8)
-    cv2.circle(seed, (int(cx), int(cy)), int(seed_r), 1, thickness=-1)
-
-    best_idx = -1
-    best_score = -1
-    best_area = -1
-
-    for idx in range(1, num):
-        area = int(stats[idx, cv2.CC_STAT_AREA])
-        if area <= 0:
-            continue
-        comp = (lab == idx)
-        score = int((comp & (seed > 0)).sum())
-        if score > best_score or (score == best_score and area > best_area):
-            best_score = score
-            best_area = area
-            best_idx = idx
-
-    if best_idx < 1 or best_score <= 0:
-        # no overlap with center seed; pick the largest component
-        best_idx = int(np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1)
-
-    return (lab == best_idx).astype(np.uint8)
-
-
-def _fill_holes_u8(mask_u8: np.ndarray) -> np.ndarray:
-    """Fill internal holes (uint8 0/1)."""
-    m = (mask_u8 > 0).astype(np.uint8) * 255
-    h, w = m.shape
-    flood = m.copy()
-    tmp = np.zeros((h + 2, w + 2), np.uint8)
-    cv2.floodFill(flood, tmp, seedPoint=(0, 0), newVal=255)
-    flood_inv = cv2.bitwise_not(flood)
-    filled = cv2.bitwise_or(m, flood_inv)
-    return (filled > 0).astype(np.uint8)
-
-
-def _perimeter_px(mask_u8: np.ndarray) -> float:
+    # draw boundary with high contrast (black underlay + colored line)
     m = (mask_u8 > 0).astype(np.uint8)
-    cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    if not cnts:
-        return 0.0
-    return float(sum(cv2.arcLength(c, True) for c in cnts))
+    cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if cnts:
+        # OpenCV expects BGR, so convert for drawing then back
+        bgr = cv2.cvtColor(disp, cv2.COLOR_RGB2BGR)
+        # underlay
+        cv2.drawContours(bgr, cnts, -1, (0, 0, 0), 5)
+        # main line (magenta)
+        cv2.drawContours(bgr, cnts, -1, (255, 0, 255), 2)
+        disp = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
 
+    # HUD text overlay (best-effort window overlay)
+    area = int(mask_u8.sum())
+    perim = _perimeter_px(mask_u8)
+    msg = (
+        f"thr={thr_base} => {thr_eff} | area={area} px | perim={perim:.1f} px | "
+        f"pad={ctx.pad}px (+{pad_extra}px) | scale={ctx.scale:.3f} | ENTER accept | ESC cancel | R reset"
+    )
+    _safe_display_overlay(ctx.window, msg, 1000)
 
-def _safe_display_overlay(window: str, msg: str, ms: int = 1000) -> None:
-    """Best-effort overlay text. Some OpenCV builds lack displayOverlay or may error."""
-    try:
-        fn = getattr(cv2, "displayOverlay", None)
-        if fn is None:
-            return
-        fn(window, msg, int(ms))
-    except Exception:
-        # Never crash the UI because of a HUD.
-        return
+    return disp, mask_u8
 
 
 def brain_mask_threshold_ui(
@@ -161,16 +116,22 @@ def brain_mask_threshold_ui(
         gray_u8 = gray_u8_full
         rgb = rgb_full
 
-    h, w = gray_u8.shape
+    pad_ui = int(max(1, round(int(pad) * scale))) if pad > 0 else 0
+    seed_r_ui = int(max(1, round(int(seed_r) * scale))) if seed_r > 0 else 0
+    close_r_ui = int(max(1, round(int(close_r) * scale))) if close_r > 0 else 0
+    open_r_ui = int(max(1, round(int(open_r) * scale))) if open_r > 0 else 0
 
-    # Scale UI-space geometry params (pad/seed/morph radii)
-    def _sc(v: int) -> int:
-        return int(max(1, round(int(v) * scale))) if v > 0 else 0
-
-    pad_ui = _sc(pad)
-    seed_r_ui = _sc(seed_r)
-    close_r_ui = _sc(close_r)
-    open_r_ui = _sc(open_r)
+    ctx = BrainMaskUIContext(
+        gray_u8=gray_u8,
+        rgb=rgb,
+        window=window,
+        scale=scale,
+        pad=pad,
+        pad_ui=pad_ui,
+        seed_r_ui=seed_r_ui,
+        close_r_ui=close_r_ui,
+        open_r_ui=open_r_ui,
+    )
 
     # initial threshold via Otsu (on inverted? no, we want dark as FG => gray < thr)
     try:
@@ -181,7 +142,6 @@ def brain_mask_threshold_ui(
 
     thr0 = int(np.clip(thr0, 0, 255))
 
-    after_ids: list[int] = []  # local safety, window-scoped
     state = {
         "thr": thr0,
         "pad_extra": 0,
@@ -189,6 +149,7 @@ def brain_mask_threshold_ui(
         "accepted": False,
     }
 
+    print("DEBUG: вызов UI окна")
     # UI window
     cv2.namedWindow(window, cv2.WINDOW_NORMAL)
 
@@ -203,76 +164,16 @@ def brain_mask_threshold_ui(
     cv2.createTrackbar("thr (dark<)", window, thr0, 255, _on_trackbar)
     cv2.createTrackbar("pad +", window, 0, 200, _on_trackbar_pad)
 
-    def compute_mask(thr: int, pad_eff_ui: int) -> np.ndarray:
-        # Dark tissue foreground
-        bin_fg = (gray_u8 < int(thr)).astype(np.uint8)
-
-        # Smooth speckle
-        if close_r_ui > 0:
-            k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * close_r_ui + 1, 2 * close_r_ui + 1))
-            bin_fg = cv2.morphologyEx(bin_fg, cv2.MORPH_CLOSE, k)
-        if open_r_ui > 0:
-            k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * open_r_ui + 1, 2 * open_r_ui + 1))
-            bin_fg = cv2.morphologyEx(bin_fg, cv2.MORPH_OPEN, k)
-
-        # Component selection
-        center = (h // 2, w // 2)
-        core = _largest_component_near_center(bin_fg, center=center, seed_r=int(seed_r_ui))
-        if core.sum() == 0:
-            return core
-
-        # Fill holes and smooth again
-        core = _fill_holes_u8(core)
-        if close_r_ui > 0:
-            k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * close_r_ui + 1, 2 * close_r_ui + 1))
-            core = cv2.morphologyEx(core, cv2.MORPH_CLOSE, k)
-        core = _fill_holes_u8(core)
-
-        # Pad margin
-        if pad_eff_ui > 0:
-            kr = int(pad_eff_ui)
-            k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * kr + 1, 2 * kr + 1))
-            core = cv2.dilate(core, k)
-
-        return (core > 0).astype(np.uint8)
-
-    def render(thr_eff: int, thr_base: int, pad_extra: int) -> tuple[np.ndarray, np.ndarray]:
-        pad_eff_ui = int(max(0, pad_ui + _sc(pad_extra)))
-        mask_u8 = compute_mask(thr_eff, pad_eff_ui)
-        disp = rgb.copy()  # RGB
-
-        # no fill overlay (keeps tissue texture visible). We only draw the boundary.
-
-        # draw boundary with high contrast (black underlay + colored line)
-        m = (mask_u8 > 0).astype(np.uint8)
-        cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if cnts:
-            # OpenCV expects BGR, so convert for drawing then back
-            bgr = cv2.cvtColor(disp, cv2.COLOR_RGB2BGR)
-            # underlay
-            cv2.drawContours(bgr, cnts, -1, (0, 0, 0), 5)
-            # main line (magenta)
-            cv2.drawContours(bgr, cnts, -1, (255, 0, 255), 2)
-            disp = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-
-        # HUD text overlay (best-effort window overlay)
-        area = int(mask_u8.sum())
-        perim = _perimeter_px(mask_u8)
-        msg = (
-            f"thr={thr_base} => {thr_eff} | area={area} px | perim={perim:.1f} px | "
-            f"pad={pad}px (+{pad_extra}px) | scale={scale:.3f} | ENTER accept | ESC cancel | R reset"
-        )
-        _safe_display_overlay(window, msg, 1000)
-
-        return disp, mask_u8
-
     thr_eff = int(np.clip(state["thr"], 0, 255))
-    disp_rgb, mask_u8 = render(thr_eff, state["thr"], state["pad_extra"])
 
+    print("DEBUG: render")
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state["thr"], state["pad_extra"])
+
+    print("DEBUG: render ok")
     while True:
         if state["need_redraw"]:
             thr_eff = int(np.clip(state["thr"], 0, 255))
-            disp_rgb, mask_u8 = render(thr_eff, state["thr"], state["pad_extra"])
+            disp_rgb, mask_u8 = render(ctx, thr_eff, state["thr"], state["pad_extra"])
             state["need_redraw"] = False
 
         # show

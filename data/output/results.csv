@@ -351,3 +351,567 @@ cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 /Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 006_Y05_1.tif,ok,,,,170,13,21,27,0.3284072249589491,5531897,11785.867427945137,True,"{""accepted"": true, ""thr"": 170, ""close"": 13, ""open"": 21, ""smooth"": 27, ""scale"": 0.3284072249589491, ""area_px"": 5531897, ""perim_px"": 11785.867427945137}",,2768975,2749990,6026.23879981041,5767.6286281347275,313,325,3598,2608,50,"{""midline_pts"": ""[[1931.4029541015625, 458.2060546875], [1950.2327880859375, 2446.34326171875]]"", ""area_left_px"": 2768975, ""area_right_px"": 2749990, ""perimeter_left_px"": 6026.23879981041, ""perimeter_right_px"": 5767.6286281347275, ""crop_x0"": 313, ""crop_y0"": 325, ""crop_x1"": 3598, ""crop_y1"": 2608, ""pad"": 50}",32872,1879.778780221939,30748,1301.2863587141037,"[1023, 597, 2907, 1356]",0.33,0.66,True,900,True,200,1023,597,2907,1356,"{""t1"": 0.33, ""t2"": 0.66, ""x0"": 1023, ""y0"": 597, ""x1"": 2907, ""y1"": 1356, ""small_to_gray"": true, ""small_N"": 900, ""grid_on"": true, ""grid_step"": 200}","{""overlay_path"": ""/Users/kseniialavrova/PycharmProjects/HMT/data/output/TileScan 006_Y05_1__hippocampus_overlay.png"", ""brain_outline_path"": ""/Users/kseniialavrova/PycharmProjects/HMT/data/output/TileScan 006_Y05_1__brain_outline.png"", ""brain_outline_params"": {""accepted"": true, ""thr"": 170, ""close"": 13, ""open"": 21, ""smooth"": 27, ""scale"": 0.3284072249589491, ""area_px"": 5531897, ""perim_px"": 11785.867427945137}, ""brain_mask_params"": {""accepted"": true, ""thr_base"": 191, ""thr"": 191, ""pad"": 50, ""pad_extra"": 63, ""pad_effective"": 113, ""seed_r"": 40, ""close_r"": 7, ""open_r"": 3, ""max_side"": 700, ""scale"": 0.19157088122605365, ""area_px"": 6677120, ""perim_px"": 12365.30481517315}, ""midline_params"": {""midline_pts"": ""[[1931.4029541015625, 458.2060546875], [1950.2327880859375, 2446.34326171875]]"", ""area_left_px"": 2768975, ""area_right_px"": 2749990, ""perimeter_left_px"": 6026.23879981041, ""perimeter_right_px"": 5767.6286281347275, ""crop_x0"": 313, ""crop_y0"": 325, ""crop_x1"": 3598, ""crop_y1"": 2608, ""pad"": 50}, ""roi"": [1023, 597, 2907, 1356], ""params"": {""t1"": 0.33, ""t2"": 0.66, ""x0"": 1023, ""y0"": 597, ""x1"": 2907, ""y1"": 1356, ""small_to_gray"": true, ""small_N"": 900, ""grid_on"": true, ""grid_step"": 200}}"
 /Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 008_Y05_3.tif,ok,,,,170,21,5,17,0.3284072249589491,5609046,12197.364901781082,True,"{""accepted"": true, ""thr"": 170, ""close"": 21, ""open"": 5, ""smooth"": 17, ""scale"": 0.3284072249589491, ""area_px"": 5609046, ""perim_px"": 12197.364901781082}",,2846458,2749009,6239.025596737862,5978.3393050432205,273,243,3577,2639,50,"{""midline_pts"": ""[[1873.0, 321.0], [1896.0, 697.0], [1948.0, 1890.0], [1941.0, 1979.0], [1962.0, 2140.0], [1964.0, 2221.0], [1922.0, 2445.0]]"", ""area_left_px"": 2846458, ""area_right_px"": 2749009, ""perimeter_left_px"": 6239.025596737862, ""perimeter_right_px"": 5978.3393050432205, ""crop_x0"": 273, ""crop_y0"": 243, ""crop_x1"": 3577, ""crop_y1"": 2639, ""pad"": 50}",98108,5241.564700722694,497140,14362.365236878395,"[942, 662, 2793, 1214]",0.33,0.66,True,900,True,200,942,662,2793,1214,"{""t1"": 0.33, ""t2"": 0.66, ""x0"": 942, ""y0"": 662, ""x1"": 2793, ""y1"": 1214, ""small_to_gray"": true, ""small_N"": 900, ""grid_on"": true, ""grid_step"": 200}","{""overlay_path"": ""/Users/kseniialavrova/PycharmProjects/HMT/data/output/TileScan 008_Y05_3__hippocampus_overlay.png"", ""brain_outline_path"": ""/Users/kseniialavrova/PycharmProjects/HMT/data/output/TileScan 008_Y05_3__brain_outline.png"", ""brain_outline_params"": {""accepted"": true, ""thr"": 170, ""close"": 21, ""open"": 5, ""smooth"": 17, ""scale"": 0.3284072249589491, ""area_px"": 5609046, ""perim_px"": 12197.364901781082}, ""brain_mask_params"": {""accepted"": true, ""thr_base"": 201, ""thr"": 201, ""pad"": 50, ""pad_extra"": 70, ""pad_effective"": 120, ""seed_r"": 40, ""close_r"": 7, ""open_r"": 3, ""max_side"": 700, ""scale"": 0.19157088122605365, ""area_px"": 6862181, ""perim_px"": 12520.47638809681}, ""midline_params"": {""midline_pts"": ""[[1873.0, 321.0], [1896.0, 697.0], [1948.0, 1890.0], [1941.0, 1979.0], [1962.0, 2140.0], [1964.0, 2221.0], [1922.0, 2445.0]]"", ""area_left_px"": 2846458, ""area_right_px"": 2749009, ""perimeter_left_px"": 6239.025596737862, ""perimeter_right_px"": 5978.3393050432205, ""crop_x0"": 273, ""crop_y0"": 243, ""crop_x1"": 3577, ""crop_y1"": 2639, ""pad"": 50}, ""roi"": [942, 662, 2793, 1214], ""params"": {""t1"": 0.33, ""t2"": 0.66, ""x0"": 942, ""y0"": 662, ""x1"": 2793, ""y1"": 1214, ""small_to_gray"": true, ""small_N"": 900, ""grid_on"": true, ""grid_step"": 200}}"
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 010_Y05_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 45, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 177, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 36, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 011_Z03_1.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 45, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 177, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 36, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 013_Z03_3.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 45, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 177, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 36, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 015_Z03_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 45, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 177, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 36, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 020_X05_1.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 45, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 177, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 36, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 022_X05_3.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 45, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 177, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 36, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 024_X05_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 45, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 177, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 36, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 010_Y05_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 45, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 167, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 011_Z03_1.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 45, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 167, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 013_Z03_3.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 45, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 167, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 015_Z03_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 45, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 167, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 020_X05_1.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 45, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 167, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 022_X05_3.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 45, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 167, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 024_X05_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 45, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 167, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 010_Y05_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 167, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 011_Z03_1.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 167, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 013_Z03_3.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 167, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 015_Z03_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 167, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 020_X05_1.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 167, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 022_X05_3.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 167, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 024_X05_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 167, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 010_Y05_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 168, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 011_Z03_1.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 168, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 013_Z03_3.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 168, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 015_Z03_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 168, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 020_X05_1.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 168, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 022_X05_3.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 168, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 024_X05_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 168, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 010_Y05_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 172, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 011_Z03_1.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 172, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 013_Z03_3.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 172, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 015_Z03_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 172, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 020_X05_1.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 172, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 022_X05_3.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 172, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 024_X05_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 172, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 010_Y05_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 169, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 011_Z03_1.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 169, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 013_Z03_3.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 169, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 015_Z03_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 169, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 020_X05_1.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 169, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 022_X05_3.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 169, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 024_X05_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 169, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 010_Y05_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 170, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 011_Z03_1.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 170, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 013_Z03_3.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 170, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 015_Z03_5.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 170, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 020_X05_1.tif,error,"TypeError(""compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?"")",TypeError,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 46, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 170, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(ctx, thr_eff, state[""thr""], state[""pad_extra""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 33, in render
+    mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff=pad_eff_ui, close_r=ctx.close_r_ui, open_r=ctx.open_r_ui, seed_r=ctx.seed_r_ui,)
+TypeError: compute_mask() got an unexpected keyword argument 'pad_eff'. Did you mean 'pad_eff_ui'?
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,

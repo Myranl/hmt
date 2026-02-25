@@ -37,14 +37,11 @@ def process_one_image(
     image_path = Path(image_path).expanduser().resolve()
     out_dir = Path(out_dir).expanduser().resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-
     img = np.array(Image.open(image_path).convert("RGB"))
     img2 = downsample_rgb_cv2(img, factor=float(downsample_factor))
 
     # --- Step 0: fast brain mask (done first, so we can restrict everything else) ---
-    # Use a lightweight grayscale for the mask UI (avoid heavy preprocessing before we know the brain ROI).
     gray_fast = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY).astype(np.float32) / 255.0
-
     bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
     if bm_res is None:
         return {"image_path": str(image_path), "status": "skipped"}
@@ -60,23 +57,7 @@ def process_one_image(
     img2_proc = img2.copy()
     img2_proc[~brain_mask_ds] = (255, 255, 255)
 
-    # --- Step 1: preprocessing restricted by the brain mask ---
-    gray_base = enhance_contrast_and_smooth(img2_proc, clahe_clip=0.10, clahe_kernel=128, smooth_sigma=8.0)
-    gray_used = retina_subtract_local_mean(
-        gray_base,
-        mean_sigma=float(mean_sigma),
-        gain=float(gain),
-        p_lo=1.0,
-        p_hi=99.0,
-    )
-    # Make outside-brain pixels neutral in the working grayscale too.
-    gray_used[~brain_mask_ds] = 0.5
-
-    params = run_ui_and_get_params(gray_used, img2_vis, t1_init=0.33, t2_init=0.66)
-    if params is None:
-        return {"image_path": str(image_path), "status": "skipped"}
-
-    # OpenCV outline UI (run after Tk UI to avoid macOS Tk/Cocoa crashes)
+    # Step 1: refine brain mask with outline UI, then estimate midline (global brain geometry first)
     # We intersect the outline-derived mask with the earlier threshold mask so all downstream steps
     # are constrained to the brain region the user accepted.
     brain_mask_outline, brain_outline_params = brain_outline_ui(img2_vis)
@@ -88,6 +69,22 @@ def process_one_image(
     brain_outline_preview = overlay_mask_outline_rgb(img2_vis, brain_mask_final.astype(np.uint8), color=(0, 255, 0), thickness=2)
     brain_outline_path = out_dir / f"{stem}__brain_outline.png"
     Image.fromarray(brain_outline_preview).save(brain_outline_path)
+
+    # --- Step 2: hippocampus-oriented preprocessing restricted by the final brain mask ---
+    gray_base = enhance_contrast_and_smooth(img2_proc, clahe_clip=0.10, clahe_kernel=128, smooth_sigma=8.0)
+    gray_used = retina_subtract_local_mean(
+        gray_base,
+        mean_sigma=float(mean_sigma),
+        gain=float(gain),
+        p_lo=1.0,
+        p_hi=99.0,
+    )
+    # Make outside-brain pixels neutral in the working grayscale too.
+    gray_used[~brain_mask_final] = 0.5
+
+    params = run_ui_and_get_params(gray_used, img2_vis, t1_init=0.33, t2_init=0.66)
+    if params is None:
+        return {"image_path": str(image_path), "status": "skipped"}
 
     # clamp ROI in downsampled coords
     W = int(img2.shape[1])

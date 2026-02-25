@@ -40,6 +40,72 @@ def _fill_holes(mask_u8: np.ndarray) -> np.ndarray:
     return cv2.bitwise_or(m, flood_inv)
 
 
+def _convex_hull_mask(mask_u8: np.ndarray) -> np.ndarray:
+    """Return filled convex hull for a 0/255 mask as 0/255."""
+    m = (mask_u8 > 0).astype(np.uint8)
+    if m.sum() == 0:
+        return np.zeros_like(mask_u8, dtype=np.uint8)
+    cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    if not cnts:
+        return np.zeros_like(mask_u8, dtype=np.uint8)
+    cnt = max(cnts, key=cv2.contourArea)
+    hull = cv2.convexHull(cnt)
+    out = np.zeros_like(mask_u8, dtype=np.uint8)
+    cv2.fillPoly(out, [hull], 255)
+    return out
+
+
+def _connected_component_from_seed(bin_u8: np.ndarray, x: int, y: int, *, search_r: int = 10) -> np.ndarray:
+    """Given a binary 0/255 image and a seed (x,y), return a 0/255 mask of that CC.
+
+    If the click lands on background, we search a small neighborhood for the nearest
+    foreground pixel and use it as the seed.
+    """
+    h, w = bin_u8.shape[:2]
+    if x < 0 or y < 0 or x >= w or y >= h:
+        return np.zeros_like(bin_u8, dtype=np.uint8)
+
+    fg = (bin_u8 > 0).astype(np.uint8)
+
+    # If click is on background, search nearby for a foreground pixel.
+    if fg[y, x] == 0 and search_r > 0:
+        x0 = max(0, x - int(search_r))
+        x1 = min(w, x + int(search_r) + 1)
+        y0 = max(0, y - int(search_r))
+        y1 = min(h, y + int(search_r) + 1)
+        win = fg[y0:y1, x0:x1]
+        ys, xs = np.where(win > 0)
+        if ys.size == 0:
+            return np.zeros_like(bin_u8, dtype=np.uint8)
+        # pick nearest fg pixel
+        dy = ys.astype(np.int32) + y0 - y
+        dx = xs.astype(np.int32) + x0 - x
+        i = int(np.argmin(dy * dy + dx * dx))
+        y = int(ys[i] + y0)
+        x = int(xs[i] + x0)
+
+    if fg[y, x] == 0:
+        return np.zeros_like(bin_u8, dtype=np.uint8)
+
+    num, lab, _stats, _ = cv2.connectedComponentsWithStats(fg, connectivity=8)
+    if num <= 1:
+        return np.zeros_like(bin_u8, dtype=np.uint8)
+    idx = int(lab[y, x])
+    if idx <= 0:
+        return np.zeros_like(bin_u8, dtype=np.uint8)
+    return (lab == idx).astype(np.uint8) * 255
+
+
+def _apply_edit_layers(auto_u8: np.ndarray, add_u8: np.ndarray, del_u8: np.ndarray) -> np.ndarray:
+    """Combine auto mask with persistent add/del layers. All are 0/255."""
+    m = (auto_u8 > 0)
+    if add_u8 is not None:
+        m = m | (add_u8 > 0)
+    if del_u8 is not None:
+        m = m & ~(del_u8 > 0)
+    return (m.astype(np.uint8) * 255)
+
+
 def brain_mask_from_threshold(
     img_rgb_or_gray: np.ndarray,
     *,
@@ -150,11 +216,76 @@ def brain_outline_ui(
     cv2.createTrackbar("smooth", window, int(init_smooth), 101, lambda _: None)
     cv2.createTrackbar("close", window, int(init_close), 101, lambda _: None)
     cv2.createTrackbar("open", window, int(init_open), 101, lambda _: None)
+    # used only for manual ERASE: how strong the opening is when detecting bumps/spurs
+    cv2.createTrackbar("edit_open", window, 41, 151, lambda _: None)
 
     cur_thr = int(init_thr)
     cur_smk = int(init_smooth)
     cur_csz = int(init_close)
     cur_osz = int(init_open)
+
+    edit_add_u8 = np.zeros(g.shape, dtype=np.uint8)
+    edit_del_u8 = np.zeros(g.shape, dtype=np.uint8)
+    mode = {"kind": "erase"}  # dict so inner callbacks can mutate
+
+    # Undo stack for manual edits: store (add_layer, del_layer)
+    undo_stack: list[tuple[np.ndarray, np.ndarray]] = []
+
+    def _push_undo() -> None:
+        # store copies of the edit layers
+        undo_stack.append((edit_add_u8.copy(), edit_del_u8.copy()))
+        # cap size to avoid unbounded RAM usage
+        if len(undo_stack) > 50:
+            undo_stack.pop(0)
+
+    def _undo_last() -> None:
+        if not undo_stack:
+            return
+        a, d = undo_stack.pop()
+        edit_add_u8[:] = a
+        edit_del_u8[:] = d
+
+    state = {
+        "m_u8": np.zeros(g.shape, dtype=np.uint8),
+        "show_mask": True,
+        "show_protrusions": True,
+    }
+
+    def on_mouse(event, x, y, flags, param):
+        if event != cv2.EVENT_LBUTTONDOWN:
+            return
+        m_current_u8 = state["m_u8"]
+        ix = int(x)
+        iy = int(y)
+        if ix < 0 or iy < 0 or ix >= m_current_u8.shape[1] or iy >= m_current_u8.shape[0]:
+            return
+        if mode["kind"] == "erase":
+            # Remove only outward bumps/spurs: pixels that disappear under a strong opening.
+            # (Convex hull doesn't work: mask is always inside hull.)
+            edit_open = cv2.getTrackbarPos("edit_open", window) if "window" in locals() else 41
+            edit_open = int(edit_open)
+            if edit_open < 3:
+                edit_open = 3
+            if edit_open % 2 == 0:
+                edit_open += 1
+
+            k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (edit_open, edit_open))
+            base = cv2.morphologyEx(m_current_u8, cv2.MORPH_OPEN, k)
+
+            protrusions = cv2.bitwise_and(m_current_u8, cv2.bitwise_not(base))
+            cc = _connected_component_from_seed(protrusions, ix, iy, search_r=12)
+            if cc.sum() > 0:
+                _push_undo()
+                edit_del_u8[:] = cv2.bitwise_or(edit_del_u8, cc)
+        elif mode["kind"] == "add":
+            hull = _convex_hull_mask(m_current_u8)
+            indent = cv2.bitwise_and(hull, cv2.bitwise_not(m_current_u8))
+            cc = _connected_component_from_seed(indent, ix, iy, search_r=12)
+            if cc.sum() > 0:
+                _push_undo()
+                edit_add_u8[:] = cv2.bitwise_or(edit_add_u8, cc)
+
+    cv2.setMouseCallback(window, on_mouse)
 
     last = None
 
@@ -173,80 +304,81 @@ def brain_outline_ui(
         osz = _odd(max(1, osz))
         smk = _odd(max(1, smk))
 
-        m = (g < int(thr)).astype(np.uint8) * 255
+        auto_m = (g < int(thr)).astype(np.uint8) * 255
 
         k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (csz, csz))
         k_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (osz, osz))
-        m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, k_close)
-        m = cv2.morphologyEx(m, cv2.MORPH_OPEN, k_open)
+        auto_m = cv2.morphologyEx(auto_m, cv2.MORPH_CLOSE, k_close)
+        auto_m = cv2.morphologyEx(auto_m, cv2.MORPH_OPEN, k_open)
 
-        m = _largest_component(m)
-        if int((m > 0).sum()) >= int(min_area):
-            m = _fill_holes(m)
+        auto_m = _largest_component(auto_m)
+        if int((auto_m > 0).sum()) >= int(min_area):
+            auto_m = _fill_holes(auto_m)
+
+        m = _apply_edit_layers(auto_m, edit_add_u8, edit_del_u8)
+
+        state["m_u8"] = m
 
         # contour
         cnts, _ = cv2.findContours((m > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         cnt = max(cnts, key=cv2.contourArea) if cnts else None
         cnt_s = smooth_contour(cnt, smk) if cnt is not None else None
 
-        # preview: original + contour + binary side-by-side
-        vis = img.copy()
-        if cnt_s is not None:
-            vis_bgr = cv2.cvtColor(vis, cv2.COLOR_RGB2BGR)
-            cv2.drawContours(vis_bgr, [cnt_s], -1, (0, 255, 0), 4)
-            vis = cv2.cvtColor(vis_bgr, cv2.COLOR_BGR2RGB)
-
-        m_rgb = cv2.cvtColor(m, cv2.COLOR_GRAY2RGB)
-
-        top = vis
-        bot = m_rgb
-
         # compute simple metrics on current mask
         area_px = int((m > 0).sum())
         cnt_use = cnt_s if cnt_s is not None else cnt
         perim_px = float(cv2.arcLength(cnt_use, True)) if cnt_use is not None else 0.0
 
-        # annotate RIGHT panel (binary)
-        bot_bgr = cv2.cvtColor(bot, cv2.COLOR_RGB2BGR)
-        def _put_text_box_b(img_bgr, text: str, org: tuple[int, int], *, font_scale: float = 0.7, thickness: int = 2, pad: int = 6):
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            (tw, th), base = cv2.getTextSize(text, font, font_scale, thickness)
-            x, y = int(org[0]), int(org[1])
-            x0 = max(0, x - pad)
-            y0 = max(0, y - th - pad)
-            x1 = min(img_bgr.shape[1] - 1, x + tw + pad)
-            y1 = min(img_bgr.shape[0] - 1, y + base + pad)
-            cv2.rectangle(img_bgr, (x0, y0), (x1, y1), (0, 0, 0), -1)
-            cv2.putText(img_bgr, text, (x, y), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+        # Build display: RGB image + contours
+        vis_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
-        _put_text_box_b(bot_bgr, f"area={area_px} px", (10, 30))
-        _put_text_box_b(bot_bgr, f"perim={perim_px:.1f} px", (10, 62))
-        bot = cv2.cvtColor(bot_bgr, cv2.COLOR_BGR2RGB)
+        # main brain mask overlay (semi-transparent green)
+        if state["show_mask"]:
+            alpha = 0.28  # transparency
+            green = np.zeros_like(vis_bgr, dtype=np.uint8)
+            green[:, :, 1] = 255
+            m_bool = (m > 0)
+            # blend only where mask is true
+            vis_bgr[m_bool] = cv2.addWeighted(vis_bgr[m_bool], 1.0 - alpha, green[m_bool], alpha, 0.0)
 
-        # put text with black background box for readability
-        top_bgr = cv2.cvtColor(top, cv2.COLOR_RGB2BGR)
+            # optional thin boundary (subtle) for readability
+            if cnt_s is not None:
+                cv2.drawContours(vis_bgr, [cnt_s], -1, (0, 200, 0), 2)
 
+        # show what will be removed by ERASE: protrusions (muted red) based on edit_open
+        if state["show_protrusions"]:
+            edit_open = int(cv2.getTrackbarPos("edit_open", window))
+            if edit_open < 3:
+                edit_open = 3
+            if edit_open % 2 == 0:
+                edit_open += 1
+            k_edit = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (edit_open, edit_open))
+            base = cv2.morphologyEx(m, cv2.MORPH_OPEN, k_edit)
+            protrusions = cv2.bitwise_and(m, cv2.bitwise_not(base))
+            if int((protrusions > 0).sum()) > 0:
+                p_cnts, _ = cv2.findContours((protrusions > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+                if p_cnts:
+                    # muted brick-red and thinner
+                    cv2.drawContours(vis_bgr, p_cnts, -1, (30, 30, 180), 1)
+
+        # text overlay helpers
         def _put_text_box(img_bgr, text: str, org: tuple[int, int], *, font_scale: float = 0.7, thickness: int = 2, pad: int = 6):
             font = cv2.FONT_HERSHEY_SIMPLEX
-            (tw, th), base = cv2.getTextSize(text, font, font_scale, thickness)
+            (tw, th), base_t = cv2.getTextSize(text, font, font_scale, thickness)
             x, y = int(org[0]), int(org[1])
-            # background rectangle (black)
             x0 = max(0, x - pad)
             y0 = max(0, y - th - pad)
             x1 = min(img_bgr.shape[1] - 1, x + tw + pad)
-            y1 = min(img_bgr.shape[0] - 1, y + base + pad)
+            y1 = min(img_bgr.shape[0] - 1, y + base_t + pad)
             cv2.rectangle(img_bgr, (x0, y0), (x1, y1), (0, 0, 0), -1)
             cv2.putText(img_bgr, text, (x, y), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
 
-        _put_text_box(top_bgr, "ENTER=accept | ESC=cancel", (10, 30))
-        _put_text_box(top_bgr, f"thr={thr}  close={csz} open={osz} smooth={smk}", (10, 62))
+        mode_str = mode["kind"].upper()
+        _put_text_box(vis_bgr, f"Mode: {mode_str} (E) / ADD (A) | U=undo | C=clear | M=mask | P=protrusions", (10, 30))
+        _put_text_box(vis_bgr, f"thr={thr}  close={csz} open={osz} smooth={smk}  edit_open={cv2.getTrackbarPos('edit_open', window)}", (10, 62))
+        _put_text_box(vis_bgr, f"area={area_px} px  perim={perim_px:.1f} px", (10, 94))
 
-        top = cv2.cvtColor(top_bgr, cv2.COLOR_BGR2RGB)
-
-        show = np.hstack([top, bot])
-        show_bgr = cv2.cvtColor(show, cv2.COLOR_RGB2BGR)
-        cv2.imshow(window, show_bgr)
-
+        cv2.imshow(window, vis_bgr)
         k = cv2.waitKey(30) & 0xFF
         if k in (13, 10):
             last = (m > 0)
@@ -254,6 +386,20 @@ def brain_outline_ui(
         if k == 27:
             last = None
             break
+        if k in (ord('e'), ord('E')):
+            mode['kind'] = 'erase'
+        if k in (ord('a'), ord('A')):
+            mode['kind'] = 'add'
+        if k in (ord('u'), ord('U')):
+            _undo_last()
+        if k in (ord('c'), ord('C')):
+            _push_undo()
+            edit_add_u8[:] = 0
+            edit_del_u8[:] = 0
+        if k in (ord('m'), ord('M')):
+            state["show_mask"] = not state["show_mask"]
+        if k in (ord('p'), ord('P')):
+            state["show_protrusions"] = not state["show_protrusions"]
 
     cv2.destroyWindow(window)
 

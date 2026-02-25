@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any, Iterable
 import json
 
-
 def _iter_image_paths(root: Path, *, recursive: bool = True) -> list[Path]:
     exts = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
     if recursive:
@@ -98,17 +97,13 @@ def _to_row(result: Any, *, image_path: Path) -> dict[str, Any]:
 
     return row
 
-
 def process_paths(
     img_paths: list[Path],
     out_dir: str | Path,
-    *,
-    interactive: bool = True,
-    save_csv: bool = True,
 ) -> "list[dict[str, Any]]":
     """Process a given list of image paths.
 
-    This is the batch core used by both UI selection and folder scanning.
+    Writes results incrementally to out_dir/results.csv to avoid losing progress.
     """
     out = Path(out_dir).expanduser().resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -118,7 +113,7 @@ def process_paths(
     except Exception as e:  # pragma: no cover
         raise ImportError(
             "Missing pipeline.single_image.process_one_image. "
-            "Create pipeline/single_image.py with a function process_one_image(path, out_dir, interactive=...)."
+            "Create pipeline/single_image.py with a function process_one_image(path, out_dir)."
         ) from e
 
     rows: list[dict[str, Any]] = []
@@ -126,6 +121,58 @@ def process_paths(
     csv_path = out / "results.csv"
     csv_fieldnames: list[str] = []
     extra_col = "extra_json"
+
+    baseline = ["image_path", "status", "error", "error_type", "traceback"]
+
+    # Stable, readable schema (promoted fields from _to_row).
+    promoted = [
+        # brain outline
+        "brain_thr",
+        "brain_close",
+        "brain_open",
+        "brain_smooth",
+        "brain_scale",
+        "brain_area_px",
+        "brain_perim_px",
+        "brain_accepted",
+        "brain_outline_params_json",
+
+        # hemispheres / midline
+        "midline_xy",
+        "hemi_area_left_px",
+        "hemi_area_right_px",
+        "hemi_perim_left_px",
+        "hemi_perim_right_px",
+        "midline_crop_x0",
+        "midline_crop_y0",
+        "midline_crop_x1",
+        "midline_crop_y1",
+        "midline_pad",
+        "midline_params_json",
+
+        # hippocampus metrics
+        "hip_left_area_px",
+        "hip_left_perim_px",
+        "hip_right_area_px",
+        "hip_right_perim_px",
+
+        # ROI + UI params
+        "roi_json",
+        "ui_t1",
+        "ui_t2",
+        "ui_small_to_gray",
+        "ui_small_N",
+        "ui_grid_on",
+        "ui_grid_step",
+        "ui_roi_x0",
+        "ui_roi_y0",
+        "ui_roi_x1",
+        "ui_roi_y1",
+        "ui_params_json",
+    ]
+
+    # Keep extra_json last as a safety net for future/unknown keys.
+    csv_fieldnames = baseline + promoted + [extra_col]
 
     def _ensure_header_and_writer():
         """Open CSV in append mode and ensure header is present.
@@ -154,16 +201,9 @@ def process_paths(
             w.writeheader()
         return f, w
 
-    baseline = ["image_path", "status", "error", "error_type", "traceback", extra_col]
-
-    if save_csv:
-        # Start with a stable set of columns (append-only). If a CSV already exists,
-        # we will override this with the existing header inside _ensure_header_and_writer().
-        csv_fieldnames = list(baseline)
-
     for p in img_paths:
         try:
-            res = process_one_image(p, out_dir=out, interactive=interactive)
+            res = process_one_image(p, out_dir=out)
             row = _to_row(res, image_path=p)
         except Exception as e:
             import traceback
@@ -180,31 +220,30 @@ def process_paths(
         rows.append(row)
 
         # Write incrementally so we don't lose progress if the run stops mid-way.
-        if save_csv:
+        try:
+            f, w = _ensure_header_and_writer()
             try:
-                f, w = _ensure_header_and_writer()
-                try:
-                    # Protect CSV from rewrites: unknown keys go into extra_json.
-                    extra = {k: row[k] for k in row.keys() if k not in csv_fieldnames}
-                    if extra:
-                        # keep existing extra_json if present
-                        prev = row.get(extra_col)
-                        if prev:
-                            try:
-                                prev_obj = json.loads(prev) if isinstance(prev, str) else prev
-                            except Exception:
-                                prev_obj = {"prev": str(prev)}
-                            if isinstance(prev_obj, dict):
-                                prev_obj.update(extra)
-                                extra = prev_obj
-                        row[extra_col] = json.dumps(extra, ensure_ascii=False)
+                # Protect CSV from rewrites: unknown keys go into extra_json.
+                extra = {k: row[k] for k in row.keys() if k not in csv_fieldnames}
+                if extra:
+                    # keep existing extra_json if present
+                    prev = row.get(extra_col)
+                    if prev:
+                        try:
+                            prev_obj = json.loads(prev) if isinstance(prev, str) else prev
+                        except Exception:
+                            prev_obj = {"prev": str(prev)}
+                        if isinstance(prev_obj, dict):
+                            prev_obj.update(extra)
+                            extra = prev_obj
+                    row[extra_col] = json.dumps(extra, ensure_ascii=False)
 
-                    safe_row = {k: row.get(k, "") for k in csv_fieldnames}
-                    w.writerow(safe_row)
-                finally:
-                    f.close()
-            except Exception:
-                pass
+                safe_row = {k: row.get(k, "") for k in csv_fieldnames}
+                w.writerow(safe_row)
+            finally:
+                f.close()
+        except Exception:
+            pass
 
     return rows
 
@@ -213,20 +252,16 @@ def process_folder(
     input_dir: str | Path,
     out_dir: str | Path,
     *,
-    interactive: bool = True,
     recursive: bool = True,
     glob_limit: int | None = None,
-    save_csv: bool = True,
 ) -> "list[dict[str, Any]]":
     """Process all images in a folder.
 
     Parameters
     - input_dir: folder with images (optionally with subfolders)
     - out_dir: output folder for overlays/masks/metrics
-    - interactive: show UI for each image
     - recursive: search subfolders
     - glob_limit: optionally cap number of images (debug)
-    - save_csv: write a CSV summary to out_dir/results.csv
 
     Returns
     - list of per-image result rows (dict)
@@ -239,5 +274,5 @@ def process_folder(
     if glob_limit is not None:
         img_paths = img_paths[: int(glob_limit)]
 
-    rows = process_paths(img_paths, out, interactive=interactive, save_csv=save_csv)
+    rows = process_paths(img_paths, out)
     return rows

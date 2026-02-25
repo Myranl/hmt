@@ -16,4 +16,4 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     paths = [Path(p) for p in selected]
-    process_paths(paths, out_dir, interactive=True, save_csv=True)
+    process_paths(paths, out_dir)

@@ -17,13 +17,12 @@ from preproc.quantize import sketch_three_bins, small_components_to_gray
 from analysis.overlay import _overlay_masks_on_original
 from segmentation.brain_outline import brain_outline_ui, overlay_mask_outline_rgb
 from segmentation.hemisphere import midline_ui
+from ui.brain_mask.threshold_ui import brain_mask_threshold_ui
 
 def process_one_image(
     image_path: str | Path,
     *,
     out_dir: str | Path,
-    interactive: bool = True,
-    default_params: dict[str, Any] | None = None,
     downsample_factor: float = 2.0,
     mean_sigma: float = 8.0,
     gain: float = 3.0,
@@ -40,26 +39,32 @@ def process_one_image(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     img = np.array(Image.open(image_path).convert("RGB"))
-
     img2 = downsample_rgb_cv2(img, factor=float(downsample_factor))
 
     gray_base = enhance_contrast_and_smooth(img2, clahe_clip=0.10, clahe_kernel=128, smooth_sigma=8.0)
     gray_used = retina_subtract_local_mean(gray_base, mean_sigma=float(mean_sigma), gain=float(gain), p_lo=1.0, p_hi=99.0)
 
-    if interactive:
-        params = run_ui_and_get_params(gray_used, img2, t1_init=0.33, t2_init=0.66)
-        if params is None:
-            return {"image_path": str(image_path), "status": "skipped"}
-    else:
-        if default_params is None:
-            raise ValueError("interactive=False requires default_params")
-        params = dict(default_params)
+    bm_res = brain_mask_threshold_ui(gray_used, img2, pad=50)
+    if bm_res is None:
+        return {"image_path": str(image_path), "status": "skipped"}
+
+    brain_mask_ds = bm_res.mask.astype(bool)  # bool mask on img2 (downsample)
+    brain_mask_params = bm_res.params  # dict
+
+    params = run_ui_and_get_params(gray_used, img2, t1_init=0.33, t2_init=0.66)
+    if params is None:
+        return {"image_path": str(image_path), "status": "skipped"}
 
     # OpenCV outline UI (run after Tk UI to avoid macOS Tk/Cocoa crashes)
-    brain_mask, brain_outline_params = brain_outline_ui(img2)
-    midline_params = midline_ui(img2, brain_mask, pad=50)
+    # We intersect the outline-derived mask with the earlier threshold mask so all downstream steps
+    # are constrained to the brain region the user accepted.
+    brain_mask_outline, brain_outline_params = brain_outline_ui(img2)
+    brain_mask_final = (brain_mask_outline.astype(bool) & brain_mask_ds)
+
+    midline_params = midline_ui(img2, brain_mask_final, pad=50)
+
     stem = image_path.stem
-    brain_outline_preview = overlay_mask_outline_rgb(img2, brain_mask, color=(0, 255, 0), thickness=2)
+    brain_outline_preview = overlay_mask_outline_rgb(img2, brain_mask_final.astype(np.uint8), color=(0, 255, 0), thickness=2)
     brain_outline_path = out_dir / f"{stem}__brain_outline.png"
     Image.fromarray(brain_outline_preview).save(brain_outline_path)
 
@@ -75,6 +80,9 @@ def process_one_image(
     gray_roi = gray_used[y0:y1, x0:x1]
     _, sketch_u8 = sketch_three_bins(gray_roi, t1=float(params["t1"]), t2=float(params["t2"]))
 
+    # Constrain the sketch to the brain mask (outside brain = gray/ignored)
+    brain_roi = brain_mask_final[y0:y1, x0:x1]
+    sketch_u8[~brain_roi] = 127
 
     # save brain outline preview (downsampled for quick inspection)
     # stem = image_path.stem  # removed duplicate stem assignment
@@ -82,24 +90,23 @@ def process_one_image(
     if bool(params.get("small_to_gray", False)):
         sketch_u8 = small_components_to_gray(sketch_u8, min_area=int(params.get("small_N", 0)))
 
-    if interactive:
-        bg_roi = img2[y0:y1, x0:x1]
-        left_roi_sel, sketch_after_left = select_components_on_background(sketch_u8, bg_roi, window="Pick LEFT hippocampus (green)")
-        right_roi_sel, sketch_after_both = select_components_on_background(sketch_after_left, bg_roi, window="Pick RIGHT hippocampus (green)")
+    bg_roi = img2[y0:y1, x0:x1]
+    left_roi_sel, sketch_after_left = select_components_on_background(
+        sketch_u8, bg_roi, window="Pick LEFT hippocampus (green)"
+    )
+    right_roi_sel, sketch_after_both = select_components_on_background(
+        sketch_after_left, bg_roi, window="Pick RIGHT hippocampus (green)"
+    )
 
-        roi = (x0, y0, x1, y1)
-        left_roi_sel, right_roi_sel = review_and_maybe_edit(
-            img2_rgb=img2,
-            sketch_u8_roi=sketch_after_both,
-            bg_roi=bg_roi,
-            roi=roi,
-            left_roi_sel=left_roi_sel,
-            right_roi_sel=right_roi_sel,
-        )
-    else:
-        # non-interactive: expect selections in params (as masks in ROI coords)
-        left_roi_sel = np.asarray(params["left_roi_sel"], dtype=np.uint8)
-        right_roi_sel = np.asarray(params["right_roi_sel"], dtype=np.uint8)
+    roi = (x0, y0, x1, y1)
+    left_roi_sel, right_roi_sel = review_and_maybe_edit(
+        img2_rgb=img2,
+        sketch_u8_roi=sketch_after_both,
+        bg_roi=bg_roi,
+        roi=roi,
+        left_roi_sel=left_roi_sel,
+        right_roi_sel=right_roi_sel,
+    )
 
     # after ALL OK: make each selection a single smooth filled object
     left_roi_sel = smooth_fill_mask(left_roi_sel, close_ksize=25, open_ksize=7, blur_sigma=2.0)
@@ -110,6 +117,10 @@ def process_one_image(
     right_ds = np.zeros((H, W), dtype=np.uint8)
     left_ds[y0:y1, x0:x1] = left_roi_sel
     right_ds[y0:y1, x0:x1] = right_roi_sel
+
+    # Constrain hippocampus masks to the final brain mask
+    left_ds[~brain_mask_final] = 0
+    right_ds[~brain_mask_final] = 0
 
     # map to original image size
     orig_h, orig_w = img.shape[:2]
@@ -150,6 +161,7 @@ def process_one_image(
         "overlay_path": str(overlay_path),
         "brain_outline_path": str(brain_outline_path),
         "brain_outline_params": brain_outline_params,
+        "brain_mask_params": brain_mask_params,
         "midline_params": midline_params,
         "hip_left_area_px": hip_left_area_px,
         "hip_left_perim_px": hip_left_perim_px,

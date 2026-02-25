@@ -1,10 +1,15 @@
 {
-  "input_dir": "/Users/kseniialavrova/PycharmProjects/HMT/data/input",
+  "input_dir": "/Users/kseniialavrova/PycharmProjects/HMT/data/controls",
   "output_dir": "/Users/kseniialavrova/PycharmProjects/HMT/data/output",
   "selected": [
-    "/Users/kseniialavrova/PycharmProjects/HMT/data/input/TileScan 001_X12_1.tif",
-    "/Users/kseniialavrova/PycharmProjects/HMT/data/input/TileScan 019_T05_5.tif",
-    "/Users/kseniialavrova/PycharmProjects/HMT/data/input/TileScan 023_Z10_3.tif",
-    "/Users/kseniialavrova/PycharmProjects/HMT/data/input/TileScan 025_M13_5.tif"
+    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 006_Y05_1.tif",
+    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 008_Y05_3.tif",
+    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 010_Y05_5.tif",
+    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 011_Z03_1.tif",
+    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 013_Z03_3.tif",
+    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 015_Z03_5.tif",
+    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 020_X05_1.tif",
+    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 022_X05_3.tif",
+    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 024_X05_5.tif"
   ]
 }

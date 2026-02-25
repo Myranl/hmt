@@ -41,30 +41,51 @@ def process_one_image(
     img = np.array(Image.open(image_path).convert("RGB"))
     img2 = downsample_rgb_cv2(img, factor=float(downsample_factor))
 
-    gray_base = enhance_contrast_and_smooth(img2, clahe_clip=0.10, clahe_kernel=128, smooth_sigma=8.0)
-    gray_used = retina_subtract_local_mean(gray_base, mean_sigma=float(mean_sigma), gain=float(gain), p_lo=1.0, p_hi=99.0)
+    # --- Step 0: fast brain mask (done first, so we can restrict everything else) ---
+    # Use a lightweight grayscale for the mask UI (avoid heavy preprocessing before we know the brain ROI).
+    gray_fast = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY).astype(np.float32) / 255.0
 
-    bm_res = brain_mask_threshold_ui(gray_used, img2, pad=50)
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
     if bm_res is None:
         return {"image_path": str(image_path), "status": "skipped"}
 
     brain_mask_ds = bm_res.mask.astype(bool)  # bool mask on img2 (downsample)
     brain_mask_params = bm_res.params  # dict
 
-    params = run_ui_and_get_params(gray_used, img2, t1_init=0.33, t2_init=0.66)
+    # Visualization image for all downstream UIs: gray-out everything outside the brain.
+    img2_vis = img2.copy()
+    img2_vis[~brain_mask_ds] = (230, 230, 230)
+
+    # Processing image: neutralize outside-brain pixels so they don't affect contrast normalization.
+    img2_proc = img2.copy()
+    img2_proc[~brain_mask_ds] = (255, 255, 255)
+
+    # --- Step 1: preprocessing restricted by the brain mask ---
+    gray_base = enhance_contrast_and_smooth(img2_proc, clahe_clip=0.10, clahe_kernel=128, smooth_sigma=8.0)
+    gray_used = retina_subtract_local_mean(
+        gray_base,
+        mean_sigma=float(mean_sigma),
+        gain=float(gain),
+        p_lo=1.0,
+        p_hi=99.0,
+    )
+    # Make outside-brain pixels neutral in the working grayscale too.
+    gray_used[~brain_mask_ds] = 0.5
+
+    params = run_ui_and_get_params(gray_used, img2_vis, t1_init=0.33, t2_init=0.66)
     if params is None:
         return {"image_path": str(image_path), "status": "skipped"}
 
     # OpenCV outline UI (run after Tk UI to avoid macOS Tk/Cocoa crashes)
     # We intersect the outline-derived mask with the earlier threshold mask so all downstream steps
     # are constrained to the brain region the user accepted.
-    brain_mask_outline, brain_outline_params = brain_outline_ui(img2)
+    brain_mask_outline, brain_outline_params = brain_outline_ui(img2_vis)
     brain_mask_final = (brain_mask_outline.astype(bool) & brain_mask_ds)
 
-    midline_params = midline_ui(img2, brain_mask_final, pad=50)
+    midline_params = midline_ui(img2_vis, brain_mask_final, pad=50)
 
     stem = image_path.stem
-    brain_outline_preview = overlay_mask_outline_rgb(img2, brain_mask_final.astype(np.uint8), color=(0, 255, 0), thickness=2)
+    brain_outline_preview = overlay_mask_outline_rgb(img2_vis, brain_mask_final.astype(np.uint8), color=(0, 255, 0), thickness=2)
     brain_outline_path = out_dir / f"{stem}__brain_outline.png"
     Image.fromarray(brain_outline_preview).save(brain_outline_path)
 
@@ -90,7 +111,7 @@ def process_one_image(
     if bool(params.get("small_to_gray", False)):
         sketch_u8 = small_components_to_gray(sketch_u8, min_area=int(params.get("small_N", 0)))
 
-    bg_roi = img2[y0:y1, x0:x1]
+    bg_roi = img2_vis[y0:y1, x0:x1]
     left_roi_sel, sketch_after_left = select_components_on_background(
         sketch_u8, bg_roi, window="Pick LEFT hippocampus (green)"
     )
@@ -100,7 +121,7 @@ def process_one_image(
 
     roi = (x0, y0, x1, y1)
     left_roi_sel, right_roi_sel = review_and_maybe_edit(
-        img2_rgb=img2,
+        img2_rgb=img2_vis,
         sketch_u8_roi=sketch_after_both,
         bg_roi=bg_roi,
         roi=roi,

@@ -1,0 +1,351 @@
+image_path,status,error,error_type,traceback,brain_thr,brain_close,brain_open,brain_smooth,brain_scale,brain_area_px,brain_perim_px,brain_accepted,brain_outline_params_json,midline_xy,hemi_area_left_px,hemi_area_right_px,hemi_perim_left_px,hemi_perim_right_px,midline_crop_x0,midline_crop_y0,midline_crop_x1,midline_crop_y1,midline_pad,midline_params_json,hip_left_area_px,hip_left_perim_px,hip_right_area_px,hip_right_perim_px,roi_json,ui_t1,ui_t2,ui_small_to_gray,ui_small_N,ui_grid_on,ui_grid_step,ui_roi_x0,ui_roi_y0,ui_roi_x1,ui_roi_y1,ui_params_json,extra_json
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 006_Y05_1.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 008_Y05_3.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 010_Y05_5.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 011_Z03_1.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 013_Z03_3.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 015_Z03_5.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 020_X05_1.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 022_X05_3.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 024_X05_5.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 006_Y05_1.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 008_Y05_3.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 010_Y05_5.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 011_Z03_1.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 013_Z03_3.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 015_Z03_5.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 020_X05_1.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 006_Y05_1.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 008_Y05_3.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 010_Y05_5.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 011_Z03_1.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 013_Z03_3.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 015_Z03_5.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 020_X05_1.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 022_X05_3.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 024_X05_5.tif,error,"error(""OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'\n"")",error,"Traceback (most recent call last):
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/batch.py"", line 206, in process_paths
+    res = process_one_image(p, out_dir=out)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/pipeline/single_image.py"", line 48, in process_one_image
+    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 254, in brain_mask_threshold_ui
+    disp_rgb, mask_u8 = render(thr_eff, state[""thr""], state[""thr_off""])
+                        ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/Users/kseniialavrova/PycharmProjects/HMT/ui/brain_mask/threshold_ui.py"", line 249, in render
+    cv2.displayOverlay(window, msg, 1000)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) /Users/xperience/GHA-OpenCV-Python/_work/opencv-python/opencv-python/opencv/modules/highgui/src/window.cpp:1228: error: (-213:The function/feature is not implemented) The library is compiled without QT support in function 'displayOverlay'
+
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,

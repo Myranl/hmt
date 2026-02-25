@@ -92,6 +92,18 @@ def _perimeter_px(mask_u8: np.ndarray) -> float:
     return float(sum(cv2.arcLength(c, True) for c in cnts))
 
 
+def _safe_display_overlay(window: str, msg: str, ms: int = 1000) -> None:
+    """Best-effort overlay text. Some OpenCV builds lack displayOverlay or may error."""
+    try:
+        fn = getattr(cv2, "displayOverlay", None)
+        if fn is None:
+            return
+        fn(window, msg, int(ms))
+    except Exception:
+        # Never crash the UI because of a HUD.
+        return
+
+
 def brain_mask_threshold_ui(
     gray_used: np.ndarray,
     img2: np.ndarray,
@@ -172,9 +184,9 @@ def brain_mask_threshold_ui(
     after_ids: list[int] = []  # local safety, window-scoped
     state = {
         "thr": thr0,
+        "pad_extra": 0,
         "need_redraw": True,
         "accepted": False,
-        "result": None,
     }
 
     # UI window
@@ -184,9 +196,14 @@ def brain_mask_threshold_ui(
         state["thr"] = int(v)
         state["need_redraw"] = True
 
-    cv2.createTrackbar("thr (dark<)", window, thr0, 255, _on_trackbar)
+    def _on_trackbar_pad(v: int) -> None:
+        state["pad_extra"] = int(v)
+        state["need_redraw"] = True
 
-    def compute_mask(thr: int) -> np.ndarray:
+    cv2.createTrackbar("thr (dark<)", window, thr0, 255, _on_trackbar)
+    cv2.createTrackbar("pad +", window, 0, 200, _on_trackbar_pad)
+
+    def compute_mask(thr: int, pad_eff_ui: int) -> np.ndarray:
         # Dark tissue foreground
         bin_fg = (gray_u8 < int(thr)).astype(np.uint8)
 
@@ -212,15 +229,16 @@ def brain_mask_threshold_ui(
         core = _fill_holes_u8(core)
 
         # Pad margin
-        if pad_ui > 0:
-            kr = int(pad_ui)
+        if pad_eff_ui > 0:
+            kr = int(pad_eff_ui)
             k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * kr + 1, 2 * kr + 1))
             core = cv2.dilate(core, k)
 
         return (core > 0).astype(np.uint8)
 
-    def render(thr: int) -> tuple[np.ndarray, np.ndarray]:
-        mask_u8 = compute_mask(thr)
+    def render(thr_eff: int, thr_base: int, pad_extra: int) -> tuple[np.ndarray, np.ndarray]:
+        pad_eff_ui = int(max(0, pad_ui + _sc(pad_extra)))
+        mask_u8 = compute_mask(thr_eff, pad_eff_ui)
         disp = rgb.copy()  # RGB
 
         # no fill overlay (keeps tissue texture visible). We only draw the boundary.
@@ -237,26 +255,24 @@ def brain_mask_threshold_ui(
             cv2.drawContours(bgr, cnts, -1, (255, 0, 255), 2)
             disp = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
 
-        # HUD text with black backing
+        # HUD text overlay (best-effort window overlay)
         area = int(mask_u8.sum())
         perim = _perimeter_px(mask_u8)
-        msg1 = f"thr={thr} | area={area} px | perim={perim:.1f} px | pad={pad}px (ui={pad_ui}px) | scale={scale:.3f}"
-        msg2 = "Boundary shown (magenta). ENTER accept | ESC cancel | R reset(otsu)"
+        msg = (
+            f"thr={thr_base} => {thr_eff} | area={area} px | perim={perim:.1f} px | "
+            f"pad={pad}px (+{pad_extra}px) | scale={scale:.3f} | ENTER accept | ESC cancel | R reset"
+        )
+        _safe_display_overlay(window, msg, 1000)
 
-        bgr = cv2.cvtColor(disp, cv2.COLOR_RGB2BGR)
-        # background rectangles
-        cv2.rectangle(bgr, (8, 8), (8 + 820, 8 + 28), (0, 0, 0), thickness=-1)
-        cv2.rectangle(bgr, (8, 40), (8 + 820, 40 + 28), (0, 0, 0), thickness=-1)
-        cv2.putText(bgr, msg1, (14, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2, cv2.LINE_AA)
-        cv2.putText(bgr, msg2, (14, 62), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2, cv2.LINE_AA)
+        return disp, mask_u8
 
-        return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB), mask_u8
-
-    disp_rgb, mask_u8 = render(state["thr"])
+    thr_eff = int(np.clip(state["thr"], 0, 255))
+    disp_rgb, mask_u8 = render(thr_eff, state["thr"], state["pad_extra"])
 
     while True:
         if state["need_redraw"]:
-            disp_rgb, mask_u8 = render(state["thr"])
+            thr_eff = int(np.clip(state["thr"], 0, 255))
+            disp_rgb, mask_u8 = render(thr_eff, state["thr"], state["pad_extra"])
             state["need_redraw"] = False
 
         # show
@@ -271,7 +287,9 @@ def brain_mask_threshold_ui(
             break
         if k in (ord("r"), ord("R")):
             cv2.setTrackbarPos("thr (dark<)", window, thr0)
+            cv2.setTrackbarPos("pad +", window, 0)
             state["thr"] = thr0
+            state["pad_extra"] = 0
             state["need_redraw"] = True
 
     cv2.destroyWindow(window)
@@ -288,8 +306,11 @@ def brain_mask_threshold_ui(
     mask_bool = (mask_u8_full > 0)
     params: dict[str, Any] = {
         "accepted": True,
-        "thr": int(state["thr"]),
+        "thr_base": int(state["thr"]),
+        "thr": int(np.clip(state["thr"], 0, 255)),
         "pad": int(pad),
+        "pad_extra": int(state["pad_extra"]),
+        "pad_effective": int(pad + int(state["pad_extra"])),
         "seed_r": int(seed_r),
         "close_r": int(close_r),
         "open_r": int(open_r),

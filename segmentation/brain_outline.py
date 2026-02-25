@@ -151,6 +151,11 @@ def brain_outline_ui(
     cv2.createTrackbar("close", window, int(init_close), 101, lambda _: None)
     cv2.createTrackbar("open", window, int(init_open), 101, lambda _: None)
 
+    cur_thr = int(init_thr)
+    cur_smk = int(init_smooth)
+    cur_csz = int(init_close)
+    cur_osz = int(init_open)
+
     last = None
 
     while True:
@@ -158,6 +163,11 @@ def brain_outline_ui(
         smk = cv2.getTrackbarPos("smooth", window)
         csz = cv2.getTrackbarPos("close", window)
         osz = cv2.getTrackbarPos("open", window)
+
+        cur_thr = int(thr)
+        cur_smk = int(smk)
+        cur_csz = int(csz)
+        cur_osz = int(osz)
 
         csz = _odd(max(1, csz))
         osz = _odd(max(1, osz))
@@ -250,7 +260,11 @@ def brain_outline_ui(
     if last is None:
         return np.zeros((h0, w0), dtype=bool), {
             "accepted": False,
-            "thr": int(cv2.getTrackbarPos("thr", window)) if cv2.getWindowProperty(window, 0) >= 0 else int(init_thr),
+            "thr": int(cur_thr),
+            "close": int(_odd(max(1, cur_csz))),
+            "open": int(_odd(max(1, cur_osz))),
+            "smooth": int(_odd(max(1, cur_smk))),
+            "scale": float(scale),
             "area_px": 0,
             "perim_px": 0.0,
         }

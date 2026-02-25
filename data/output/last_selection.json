@@ -2,12 +2,6 @@
   "input_dir": "/Users/kseniialavrova/PycharmProjects/HMT/data/controls",
   "output_dir": "/Users/kseniialavrova/PycharmProjects/HMT/data/output",
   "selected": [
-    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 010_Y05_5.tif",
-    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 011_Z03_1.tif",
-    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 013_Z03_3.tif",
-    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 015_Z03_5.tif",
-    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 020_X05_1.tif",
-    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 022_X05_3.tif",
-    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 024_X05_5.tif"
+    "/Users/kseniialavrova/PycharmProjects/HMT/data/controls/TileScan 020_X05_1.tif"
   ]
 }

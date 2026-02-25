@@ -149,7 +149,6 @@ def brain_mask_threshold_ui(
         "accepted": False,
     }
 
-    print("DEBUG: вызов UI окна")
     # UI window
     cv2.namedWindow(window, cv2.WINDOW_NORMAL)
 
@@ -166,10 +165,8 @@ def brain_mask_threshold_ui(
 
     thr_eff = int(np.clip(state["thr"], 0, 255))
 
-    print("DEBUG: render")
     disp_rgb, mask_u8 = render(ctx, thr_eff, state["thr"], state["pad_extra"])
 
-    print("DEBUG: render ok")
     while True:
         if state["need_redraw"]:
             thr_eff = int(np.clip(state["thr"], 0, 255))

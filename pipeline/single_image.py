@@ -15,9 +15,9 @@ from preproc.retina import downsample_rgb_cv2, enhance_contrast_and_smooth, reti
 from ui.test_ui import run_ui_and_get_params
 from preproc.quantize import sketch_three_bins, small_components_to_gray
 from analysis.overlay import _overlay_masks_on_original
-from segmentation.brain_outline import brain_outline_ui, overlay_mask_outline_rgb
-from segmentation.hemisphere import midline_ui
 from ui.brain_mask.threshold_ui import brain_mask_threshold_ui
+from ui.brain_mask.brain_outline_UI import brain_outline_ui, overlay_mask_outline_rgb
+from ui.brain_mask.hemisphere import midline_ui
 
 def process_one_image(
     image_path: str | Path,
@@ -42,9 +42,7 @@ def process_one_image(
 
     # --- Step 0: fast brain mask (done first, so we can restrict everything else) ---
     gray_fast = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY).astype(np.float32) / 255.0
-    print("DEBUG: calling brain_mask_threshold_ui")
     bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
-    print("DEBUG: brain_mask_threshold_ui returned", type(bm_res), "accepted" if bm_res else "None")
     if bm_res is None:
         return {"image_path": str(image_path), "status": "skipped"}
 

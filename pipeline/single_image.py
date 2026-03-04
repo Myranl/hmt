@@ -1,19 +1,17 @@
 from __future__ import annotations
-
 from pathlib import Path
 from typing import Any
-
 import numpy as np
 import cv2
 from PIL import Image
 
-# interactive UIs / helpers
-from ui.pick_components import select_components_on_background
+from ui.pick_components import pick_hippocampus_and_split_by_midline
 from ui.review_ui import review_and_maybe_edit  # type: ignore
 from segmentation.postprocess import smooth_fill_mask  # type: ignore
 from preproc.retina import downsample_rgb_cv2, enhance_contrast_and_smooth, retina_subtract_local_mean
 from ui.roi.run_ui_and_get_params import run_ui_and_get_params
-from preproc.quantize import sketch_three_bins, small_components_to_gray
+from preproc.quantize import sketch_three_bins, small_components_to_gray, apply_midline_cut_to_sketch
+
 from analysis.overlay import _overlay_masks_on_original
 from ui.brain_mask.threshold_ui import brain_mask_threshold_ui
 from ui.brain_mask.brain_outline_UI import brain_outline_ui, overlay_mask_outline_rgb
@@ -91,32 +89,33 @@ def process_one_image(
 
     # recompute ROI sketch
     gray_roi = gray_used[y0:y1, x0:x1]
+
     _, sketch_u8 = sketch_three_bins(gray_roi, t1=float(params["t1"]), t2=float(params["t2"]))
-
-    # Constrain the sketch to the brain mask (outside brain = gray/ignored)
     brain_roi = brain_mask_final[y0:y1, x0:x1]
-    sketch_u8[~brain_roi] = 127
 
-    # save brain outline preview (downsampled for quick inspection)
+    sketch_u8 = apply_midline_cut_to_sketch(sketch_u8,brain_roi=brain_roi,midline_params=midline_params,roi_x0=int(x0), roi_y0=int(y0), thickness=9)
+    sketch_u8[~brain_roi] = 127
     # stem = image_path.stem  # removed duplicate stem assignment
 
     if bool(params.get("small_to_gray", False)):
         sketch_u8 = small_components_to_gray(sketch_u8, min_area=int(params.get("small_N", 0)))
 
     bg_roi = img2_vis[y0:y1, x0:x1]
-    left_roi_sel, sketch_after_left = select_components_on_background(
-        sketch_u8, bg_roi, window="Pick LEFT hippocampus (green)"
-    )
-    right_roi_sel, sketch_after_both = select_components_on_background(
-        sketch_after_left, bg_roi, window="Pick RIGHT hippocampus (green)"
+
+    left_roi_sel, right_roi_sel, sketch_after = pick_hippocampus_and_split_by_midline(
+        sketch_u8_roi=sketch_u8,
+        bg_roi_rgb=bg_roi,
+        midline_params=midline_params,
+        roi_x0=int(x0),
+        roi_y0=int(y0),
     )
 
-    roi = (x0, y0, x1, y1)
+    # дальше как раньше: review UI и т.п.
     left_roi_sel, right_roi_sel = review_and_maybe_edit(
         img2_rgb=img2_vis,
-        sketch_u8_roi=sketch_after_both,
+        sketch_u8_roi=sketch_after,
         bg_roi=bg_roi,
-        roi=roi,
+        roi=(x0, y0, x1, y1),
         left_roi_sel=left_roi_sel,
         right_roi_sel=right_roi_sel,
     )

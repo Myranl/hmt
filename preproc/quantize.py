@@ -4,13 +4,7 @@ import cv2
 import tkinter as tk
 from tkinter import ttk
 from PIL import ImageTk
-import numpy as np
-from PIL import Image, ImageDraw
-import cv2
-
-import tkinter as tk
-from tkinter import ttk
-from PIL import ImageTk
+import json
 
 from skimage.color import rgb2gray
 from skimage import exposure
@@ -57,4 +51,76 @@ def small_components_to_gray(sketch_u8: np.ndarray, *, min_area: int) -> np.ndar
             if area < int(min_area):
                 out[lab == i] = 127
 
+    return out
+
+
+def apply_midline_cut_to_sketch(
+    sketch_u8: np.ndarray,
+    *,
+    brain_roi: np.ndarray | None = None,
+    midline_params: dict | None = None,
+    roi_x0: int = 0,
+    roi_y0: int = 0,
+    thickness: int = 9,
+    cut_value: int = 127,
+) -> np.ndarray:
+    """Paint a "barrier" along the midline polyline to force a split.
+
+    The barrier is drawn into the ROI coordinate system, but the saved midline points are typically
+    in full-image XY coordinates. We convert to ROI coords via (roi_x0, roi_y0) offset.
+
+    Expected: midline_params contains key `midline_pts` as a JSON string: [[x,y], [x,y], ...]
+
+    Pixels on the barrier are set to `cut_value` (default mid-gray=127), optionally only inside brain_roi.
+    """
+    if midline_params is None:
+        return sketch_u8
+
+    s = midline_params.get("midline_pts")
+    if not s:
+        return sketch_u8
+
+    try:
+        pts = json.loads(s)
+    except Exception:
+        return sketch_u8
+
+    if not isinstance(pts, list) or len(pts) < 2:
+        return sketch_u8
+
+    h, w = sketch_u8.shape[:2]
+
+    poly: list[list[int]] = []
+    for p in pts:
+        if not (isinstance(p, (list, tuple)) and len(p) == 2):
+            continue
+        x = float(p[0]) - float(roi_x0)
+        y = float(p[1]) - float(roi_y0)
+        poly.append([int(round(x)), int(round(y))])
+
+    if len(poly) < 2:
+        return sketch_u8
+
+    poly_np = np.asarray(poly, dtype=np.int32)
+    poly_np[:, 0] = np.clip(poly_np[:, 0], 0, w - 1)
+    poly_np[:, 1] = np.clip(poly_np[:, 1], 0, h - 1)
+
+    barrier = np.zeros((h, w), dtype=np.uint8)
+    cv2.polylines(
+        barrier,
+        [poly_np],
+        isClosed=False,
+        color=1,
+        thickness=int(max(1, thickness)),
+        lineType=cv2.LINE_8,
+    )
+
+    out = sketch_u8.copy()
+
+    if brain_roi is None:
+        out[barrier > 0] = np.uint8(cut_value)
+        return out
+
+    inside = brain_roi.astype(bool)
+    out[(barrier > 0) & inside] = np.uint8(cut_value)
     return out

@@ -1,5 +1,9 @@
 import numpy as np
 import cv2
+from typing import Tuple, Dict, Any
+import numpy as np
+import json
+
 
 
 # Helper: select components on a background RGB image
@@ -226,3 +230,57 @@ def select_components_on_background(
 
     cv2.destroyWindow(window)
     return selected, base
+
+def pick_hippocampus_and_split_by_midline(
+    *,
+    sketch_u8_roi: np.ndarray,
+    bg_roi_rgb: np.ndarray,
+    midline_params: Dict[str, Any],
+    roi_x0: int,
+    roi_y0: int,
+    window: str = "Pick hippocampus components (green)",
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    1) Let user click connected components on sketch within ROI (returns sel_roi, sketch_after).
+    2) Split sel_roi into left/right hemispheres using midline points (from full-image coords).
+    Returns: (left_roi_sel_u8, right_roi_sel_u8, sketch_after_u8), all in ROI coords.
+    """
+
+    sel_roi_u8, sketch_after = select_components_on_background(
+        sketch_u8_roi, bg_roi_rgb, window=window
+    )
+    sel = (sel_roi_u8 > 0)
+
+    # Parse and shift midline points into ROI coords
+    pts = np.array(json.loads(midline_params["midline_pts"]), dtype=np.float32)  # (x,y) in full image
+    pts[:, 0] -= float(roi_x0)
+    pts[:, 1] -= float(roi_y0)
+
+    # Sort by y for stable interpolation
+    order = np.argsort(pts[:, 1])
+    pts = pts[order]
+
+    h, w = sel.shape
+    Y, X = np.indices((h, w))
+
+    mid_y = pts[:, 1]
+    mid_x = pts[:, 0]
+
+    # Avoid edge cases (duplicate y)
+    # If duplicates exist, make y strictly increasing by small jitter
+    dy = np.diff(mid_y)
+    if np.any(dy == 0):
+        # stable: add tiny increments where needed
+        for i in range(1, len(mid_y)):
+            if mid_y[i] <= mid_y[i - 1]:
+                mid_y[i] = mid_y[i - 1] + 1e-3
+
+    x_mid = np.interp(Y[:, 0].astype(np.float32), mid_y, mid_x, left=mid_x[0], right=mid_x[-1])
+    x_mid_map = x_mid[:, None]  # (h,1) broadcasts to (h,w)
+
+    left = sel & (X < x_mid_map)
+    right = sel & (X >= x_mid_map)
+
+    left_u8 = left.astype(np.uint8)
+    right_u8 = right.astype(np.uint8)
+    return left_u8, right_u8, sketch_after

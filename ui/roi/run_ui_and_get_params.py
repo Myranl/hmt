@@ -25,16 +25,7 @@ def run_ui_and_get_params(gray_used: np.ndarray, img2: np.ndarray, *, t1_init: f
     grid_step = int(roi_res["grid_step"])
 
     # ---- run step 2 ----
-    bins_res = run_bins_ui(gray=gray_used, img_rgb=img2, roi=roi, grid_on=grid_on, grid_step=grid_step)
-    bins_res = run_bins_ui(
-        gray=gray_used,
-        img_rgb=img2,
-        roi=roi,
-        grid_on=grid_on,
-        grid_step=grid_step,
-        t1_init=t1_init,
-        t2_init=t2_init
-    )
+    bins_res = run_bins_ui(  gray=gray_used, img_rgb=img2, roi=roi, grid_on=grid_on,  grid_step=grid_step,  t1_init=t1_init, t2_init=t2_init  )
     if bins_res is None:
         return None
 

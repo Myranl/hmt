@@ -4,8 +4,6 @@ import cv2
 import tkinter as tk
 from tkinter import ttk
 from PIL import ImageTk
-from ui.review_ui import review_and_maybe_edit  # type: ignore
-from segmentation.postprocess import smooth_fill_mask  # type: ignore
 from preproc.quantize import sketch_three_bins, small_components_to_gray
 from ui.tk_utils import to_photo_u8, overlay_grid_and_roi, left_panel_photo
 
@@ -28,28 +26,35 @@ def run_bins_ui(*, gray: np.ndarray, img_rgb: np.ndarray, roi: tuple[int, int, i
     # controls
     ctrl = ttk.Frame(frm)
     ctrl.grid(row=0, column=0, sticky="ew")
-    ctrl.columnconfigure(7, weight=1)
+    ctrl.columnconfigure(2, weight=1)
+    ctrl.columnconfigure(5, weight=1)
 
-    ttk.Label(ctrl, text="t1 (0..1)").grid(row=0, column=0, padx=(0, 6))
-    var_t1 = tk.StringVar(value=f"{T1_INIT:.2f}")
-    ttk.Entry(ctrl, textvariable=var_t1, width=8).grid(row=0, column=1, padx=(0, 12))
+    ttk.Label(ctrl, text="t1").grid(row=0, column=0, padx=(0, 6), sticky="w")
+    var_t1 = tk.DoubleVar(value=float(T1_INIT))
+    lbl_t1 = ttk.Label(ctrl, text=f"{var_t1.get():.2f}")
+    lbl_t1.grid(row=0, column=1, padx=(0, 10), sticky="w")
+    s_t1 = ttk.Scale(ctrl, from_=0.0, to=1.0, orient="horizontal", variable=var_t1)
+    s_t1.grid(row=0, column=2, padx=(0, 14), sticky="ew")
 
-    ttk.Label(ctrl, text="t2 (0..1)").grid(row=0, column=2, padx=(0, 6))
-    var_t2 = tk.StringVar(value=f"{T2_INIT:.2f}")
-    ttk.Entry(ctrl, textvariable=var_t2, width=8).grid(row=0, column=3, padx=(0, 12))
+    ttk.Label(ctrl, text="t2").grid(row=0, column=3, padx=(0, 6), sticky="w")
+    var_t2 = tk.DoubleVar(value=float(T2_INIT))
+    lbl_t2 = ttk.Label(ctrl, text=f"{var_t2.get():.2f}")
+    lbl_t2.grid(row=0, column=4, padx=(0, 10), sticky="w")
+    s_t2 = ttk.Scale(ctrl, from_=0.0, to=1.0, orient="horizontal", variable=var_t2)
+    s_t2.grid(row=0, column=5, padx=(0, 14), sticky="ew")
 
     var_small_to_gray = tk.BooleanVar(value=True)
-    ttk.Checkbutton(ctrl, text="small→gray", variable=var_small_to_gray).grid(row=0, column=4, padx=(12, 6), sticky="w")
+    ttk.Checkbutton(ctrl, text="small→gray", variable=var_small_to_gray).grid(row=0, column=6, padx=(12, 6), sticky="w")
 
-    ttk.Label(ctrl, text="N").grid(row=0, column=5, padx=(0, 6), sticky="e")
+    ttk.Label(ctrl, text="N").grid(row=0, column=7, padx=(0, 6), sticky="e")
     var_small_N = tk.StringVar(value="900")
-    ttk.Entry(ctrl, textvariable=var_small_N, width=6).grid(row=0, column=6, sticky="w")
+    ttk.Entry(ctrl, textvariable=var_small_N, width=6).grid(row=0, column=8, sticky="w")
 
     btn_update = ttk.Button(ctrl, text="Update")
-    btn_update.grid(row=0, column=7, padx=(12, 0), sticky="e")
+    btn_update.grid(row=0, column=9, padx=(12, 0), sticky="e")
 
     lbl_status = ttk.Label(ctrl, text=f"ROI fixed: ({x0},{y0},{x1},{y1})")
-    lbl_status.grid(row=1, column=0, columnspan=8, sticky="w", pady=(6, 0))
+    lbl_status.grid(row=1, column=0, columnspan=10, sticky="w", pady=(6, 0))
 
     # image panels
     panes = ttk.Frame(frm)
@@ -127,10 +132,13 @@ def run_bins_ui(*, gray: np.ndarray, img_rgb: np.ndarray, roi: tuple[int, int, i
 
     def render() -> None:
         try:
-            t1 = float(var_t1.get().strip())
-            t2 = float(var_t2.get().strip())
+            t1 = float(var_t1.get())
+            t2 = float(var_t2.get())
             if not (0.0 < t1 < t2 < 1.0):
                 raise ValueError("need 0 < t1 < t2 < 1")
+
+            lbl_t1.configure(text=f"{t1:.2f}")
+            lbl_t2.configure(text=f"{t2:.2f}")
 
             gray_roi = gray[y0:y1, x0:x1]
             _, sketch_u8 = sketch_three_bins(gray_roi, t1=float(t1), t2=float(t2))
@@ -177,8 +185,8 @@ def run_bins_ui(*, gray: np.ndarray, img_rgb: np.ndarray, roi: tuple[int, int, i
             return
 
         try:
-            chosen["t1"] = float(var_t1.get().strip())
-            chosen["t2"] = float(var_t2.get().strip())
+            chosen["t1"] = float(var_t1.get())
+            chosen["t2"] = float(var_t2.get())
             chosen["small_to_gray"] = bool(var_small_to_gray.get())
             chosen["small_N"] = int(float(var_small_N.get().strip()))
         except Exception as e:
@@ -192,6 +200,34 @@ def run_bins_ui(*, gray: np.ndarray, img_rgb: np.ndarray, roi: tuple[int, int, i
         chosen["done"] = False
         root.after(10, root.destroy)
 
+    _pending = {"id": None}
+
+    def _schedule_render() -> None:
+        # throttle to avoid hammering render while dragging
+        if _pending["id"] is not None:
+            try:
+                root.after_cancel(_pending["id"])
+            except Exception:
+                pass
+        _pending["id"] = root.after(80, lambda: (render(), _pending.__setitem__("id", None)))
+
+    def _on_t1_change(_val: str) -> None:
+        try:
+            lbl_t1.configure(text=f"{float(var_t1.get()):.2f}")
+        except Exception:
+            pass
+        _schedule_render()
+
+    def _on_t2_change(_val: str) -> None:
+        try:
+            lbl_t2.configure(text=f"{float(var_t2.get()):.2f}")
+        except Exception:
+            pass
+        _schedule_render()
+
+    s_t1.configure(command=_on_t1_change)
+    s_t2.configure(command=_on_t2_change)
+
     btn_update.configure(command=render)
 
     bar = ttk.Frame(frm)
@@ -201,6 +237,8 @@ def run_bins_ui(*, gray: np.ndarray, img_rgb: np.ndarray, roi: tuple[int, int, i
     ttk.Button(bar, text="Cancel", command=on_cancel).grid(row=0, column=0, sticky="w")
     ttk.Button(bar, text="Save", command=on_save).grid(row=0, column=1, padx=(10, 0), sticky="e")
 
+    root.bind("<Return>", lambda _e: on_save())
+    root.bind("<Escape>", lambda _e: on_cancel())
     render()
     root.mainloop()
 

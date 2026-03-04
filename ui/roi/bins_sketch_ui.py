@@ -151,16 +151,24 @@ def run_bins_ui(*, gray: np.ndarray, img_rgb: np.ndarray, roi: tuple[int, int, i
 
             state["sketch_u8"] = sketch_u8
 
+            # scale left image so it always fits the screen
+            try:
+                screen_w = root.winfo_screenwidth()
+                screen_h = root.winfo_screenheight()
+                max_side_left = int(min(screen_w * 0.45, screen_h * 0.75))
+            except Exception:
+                max_side_left = 750
+
             ph_left = left_panel_photo(
                 img_rgb,
-                max_side=750,
+                max_side=max_side_left,
                 grid_on=grid_on,
                 step=grid_step,
                 roi=roi,
             )
-            ph_right = to_photo_u8(sketch_u8, max_side=750)
+            ph_right = to_photo_u8(sketch_u8, max_side=max_side_left)
             roi_rgb = img_rgb[y0:y1, x0:x1]
-            ph_right_overlay = _roi_overlay_photo(roi_rgb, sketch_u8, max_side=750, alpha=0.35)
+            ph_right_overlay = _roi_overlay_photo(roi_rgb, sketch_u8, max_side=max_side_left, alpha=0.35)
 
             state["ph_left"] = ph_left
             state["ph_right"] = ph_right

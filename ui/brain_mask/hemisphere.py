@@ -104,9 +104,11 @@ def midline_ui(
         "a": a,
         "b": b,
         "drag": None,
-        "poly_mode": False,
+        "poly_mode": True,
         "pts": [a.copy(), b.copy()],
     }
+
+    HANDLE_R = 12
 
     def redraw():
         d = disp_base.copy()
@@ -119,16 +121,16 @@ def midline_ui(
                 cv2.polylines(d, [poly], isClosed=False, color=line_color_bgr, thickness=line_thickness, lineType=cv2.LINE_AA)
             for p in pts:
                 pp = tuple(np.round(p).astype(int))
-                cv2.circle(d, pp, 7, (255, 255, 255), -1, cv2.LINE_AA)
+                cv2.circle(d, pp, HANDLE_R, (255, 255, 255), -1, cv2.LINE_AA)
         else:
             aa = tuple(np.round(state["a"]).astype(int))
             bb = tuple(np.round(state["b"]).astype(int))
             cv2.line(d, aa, bb, line_color_bgr, line_thickness, cv2.LINE_AA)
-            cv2.circle(d, aa, 7, (255, 255, 255), -1, cv2.LINE_AA)
-            cv2.circle(d, bb, 7, (255, 255, 255), -1, cv2.LINE_AA)
+            cv2.circle(d, aa, HANDLE_R, (255, 255, 255), -1, cv2.LINE_AA)
+            cv2.circle(d, bb, HANDLE_R, (255, 255, 255), -1, cv2.LINE_AA)
 
         # label box
-        txt = "MIDLINE MODE  |  P: polyline  |  click/drag points  |  ENTER: accept  R: reset  ESC: cancel"
+        txt = "MIDLINE MODE  | click/drag points  |  ENTER: accept  R: reset  ESC: cancel"
         font_scale = 0.8
         font_thickness = 3
         (tw, th), _ = cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thickness)
@@ -136,7 +138,9 @@ def midline_ui(
         cv2.putText(d, txt, (15, 8 + th + 8), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 0), font_thickness, cv2.LINE_AA)
         return d
 
-    def pick_handle(x: int, y: int, p: np.ndarray, r: int = 14) -> bool:
+    def pick_handle(x: int, y: int, p: np.ndarray, r: int | None = None) -> bool:
+        if r is None:
+            r = HANDLE_R + 4
         return (x - float(p[0])) ** 2 + (y - float(p[1])) ** 2 <= float(r * r)
 
     def _nearest_point_index(x: int, y: int) -> int | None:
@@ -145,7 +149,7 @@ def midline_ui(
             return None
         d2 = [float((x - p[0]) ** 2 + (y - p[1]) ** 2) for p in pts]
         j = int(np.argmin(d2))
-        if d2[j] <= 14.0 * 14.0:
+        if d2[j] <= float((HANDLE_R + 4) ** 2):
             return j
         return None
 

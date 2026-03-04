@@ -83,14 +83,25 @@ def brain_outline_ui(
     # base grayscale (u8)
     g = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
-    cv2.namedWindow(window, cv2.WINDOW_NORMAL)
+    win_img = window
+    win_ctrl = f"{window} [controls]"
 
-    cv2.createTrackbar("thr", window, int(init_thr), 255, lambda _: None)
-    cv2.createTrackbar("smooth", window, int(init_smooth), 101, lambda _: None)
-    cv2.createTrackbar("close", window, int(init_close), 101, lambda _: None)
-    cv2.createTrackbar("open", window, int(init_open), 101, lambda _: None)
+    cv2.namedWindow(win_img, cv2.WINDOW_NORMAL)
+    cv2.namedWindow(win_ctrl, cv2.WINDOW_NORMAL)
+
+    cv2.createTrackbar("thr", win_ctrl, int(init_thr), 255, lambda _: None)
+    cv2.createTrackbar("smooth", win_ctrl, int(init_smooth), 101, lambda _: None)
+    cv2.createTrackbar("close", win_ctrl, int(init_close), 101, lambda _: None)
+    cv2.createTrackbar("open", win_ctrl, int(init_open), 101, lambda _: None)
     # used only for manual ERASE: how strong the opening is when detecting bumps/spurs
-    cv2.createTrackbar("edit_open", window, 41, 151, lambda _: None)
+    cv2.createTrackbar("edit_open", win_ctrl, 41, 151, lambda _: None)
+
+    # Try to place control window to the right of the image window (best-effort)
+    try:
+        cv2.moveWindow(win_img, 50, 50)
+        cv2.moveWindow(win_ctrl, 50 + img.shape[1] + 30, 50)
+    except Exception:
+        pass
 
     cur_thr = int(init_thr)
     cur_smk = int(init_smooth)
@@ -135,8 +146,7 @@ def brain_outline_ui(
         if mode["kind"] == "erase":
             # Remove only outward bumps/spurs: pixels that disappear under a strong opening.
             # (Convex hull doesn't work: mask is always inside hull.)
-            edit_open = cv2.getTrackbarPos("edit_open", window) if "window" in locals() else 41
-            edit_open = int(edit_open)
+            edit_open = int(cv2.getTrackbarPos("edit_open", win_ctrl))
             if edit_open < 3:
                 edit_open = 3
             if edit_open % 2 == 0:
@@ -158,15 +168,15 @@ def brain_outline_ui(
                 _push_undo()
                 edit_add_u8[:] = cv2.bitwise_or(edit_add_u8, cc)
 
-    cv2.setMouseCallback(window, on_mouse)
+    cv2.setMouseCallback(win_img, on_mouse)
 
     last = None
 
     while True:
-        thr = cv2.getTrackbarPos("thr", window)
-        smk = cv2.getTrackbarPos("smooth", window)
-        csz = cv2.getTrackbarPos("close", window)
-        osz = cv2.getTrackbarPos("open", window)
+        thr = cv2.getTrackbarPos("thr", win_ctrl)
+        smk = cv2.getTrackbarPos("smooth", win_ctrl)
+        csz = cv2.getTrackbarPos("close", win_ctrl)
+        osz = cv2.getTrackbarPos("open", win_ctrl)
 
         cur_thr = int(thr)
         cur_smk = int(smk)
@@ -218,9 +228,9 @@ def brain_outline_ui(
             if cnt_s is not None:
                 cv2.drawContours(vis_bgr, [cnt_s], -1, (0, 200, 0), 2)
 
-        # show what will be removed by ERASE: protrusions (muted red) based on edit_open
+        # show what will be removed by ERASE: protrusions (semi-transparent red) based on edit_open
         if state["show_protrusions"]:
-            edit_open = int(cv2.getTrackbarPos("edit_open", window))
+            edit_open = int(cv2.getTrackbarPos("edit_open", win_ctrl))
             if edit_open < 3:
                 edit_open = 3
             if edit_open % 2 == 0:
@@ -229,19 +239,29 @@ def brain_outline_ui(
             base = cv2.morphologyEx(m, cv2.MORPH_OPEN, k_edit)
             protrusions = cv2.bitwise_and(m, cv2.bitwise_not(base))
             if int((protrusions > 0).sum()) > 0:
-                p_cnts, _ = cv2.findContours((protrusions > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-                if p_cnts:
-                    # muted brick-red and thinner
-                    cv2.drawContours(vis_bgr, p_cnts, -1, (30, 30, 180), 1)
+                p_mask = (protrusions > 0)
+
+                # semi‑transparent red overlay
+                alpha = 0.35
+                red = np.zeros_like(vis_bgr, dtype=np.uint8)
+                red[:, :, 2] = 255
+
+                vis_bgr[p_mask] = cv2.addWeighted(
+                    vis_bgr[p_mask],
+                    1.0 - alpha,
+                    red[p_mask],
+                    alpha,
+                    0.0,
+                )
 
         # text overlay helpers
 
         mode_str = mode["kind"].upper()
         _put_text_box(vis_bgr, f"Mode: {mode_str} (E) / ADD (A) | U=undo | C=clear | M=mask | P=protrusions", (10, 30))
-        _put_text_box(vis_bgr, f"thr={thr}  close={csz} open={osz} smooth={smk}  edit_open={cv2.getTrackbarPos('edit_open', window)}", (10, 62))
+        _put_text_box(vis_bgr, f"thr={thr}  close={csz} open={osz} smooth={smk}  edit_open={cv2.getTrackbarPos('edit_open', win_ctrl)}", (10, 62))
         _put_text_box(vis_bgr, f"area={area_px} px  perim={perim_px:.1f} px", (10, 94))
 
-        cv2.imshow(window, vis_bgr)
+        cv2.imshow(win_img, vis_bgr)
         k = cv2.waitKey(30) & 0xFF
         if k in (13, 10):
             last = (m > 0)
@@ -264,7 +284,8 @@ def brain_outline_ui(
         if k in (ord('p'), ord('P')):
             state["show_protrusions"] = not state["show_protrusions"]
 
-    cv2.destroyWindow(window)
+    cv2.destroyWindow(win_img)
+    cv2.destroyWindow(win_ctrl)
 
     if last is None:
         return np.zeros((h0, w0), dtype=bool), {

@@ -17,6 +17,8 @@ from ui.brain_mask.threshold_ui import brain_mask_threshold_ui
 from ui.brain_mask.brain_outline_UI import brain_outline_ui, overlay_mask_outline_rgb
 from ui.brain_mask.hemisphere import midline_ui
 
+from preproc.resize import midline_params_to_orig, ds_scale, roi_ds_to_orig
+
 def process_one_image(
     image_path: str | Path,
     *,
@@ -37,6 +39,10 @@ def process_one_image(
     out_dir.mkdir(parents=True, exist_ok=True)
     img = np.array(Image.open(image_path).convert("RGB"))
     img2 = downsample_rgb_cv2(img, factor=float(downsample_factor))
+
+    H_ds, W_ds = img2.shape[:2]
+    orig_h, orig_w = img.shape[:2]
+    sx, sy = ds_scale((orig_h, orig_w), (H_ds, W_ds))
 
     # --- Step 0: fast brain mask (done first, so we can restrict everything else) ---
     gray_fast = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY).astype(np.float32) / 255.0
@@ -62,7 +68,7 @@ def process_one_image(
     brain_mask_final = (brain_mask_outline.astype(bool) & brain_mask_ds)
 
     midline_params = midline_ui(img2_vis, brain_mask_final, pad=50)
-    print(midline_params)
+    midline_params_orig = midline_params_to_orig(midline_params, sx, sy)
 
     stem = image_path.stem
     brain_outline_preview = overlay_mask_outline_rgb(img2_vis, brain_mask_final.astype(np.uint8), color=(0, 255, 0), thickness=2)
@@ -86,6 +92,9 @@ def process_one_image(
     y0 = max(0, min(H - 1, int(params["y0"])))
     x1 = max(x0 + 1, min(W, int(params["x1"])))
     y1 = max(y0 + 1, min(H, int(params["y1"])))
+
+    roi_ds = (x0, y0, x1, y1)
+    roi_orig = roi_ds_to_orig(roi_ds, sx, sy)
 
     # recompute ROI sketch
     gray_roi = gray_used[y0:y1, x0:x1]
@@ -125,7 +134,6 @@ def process_one_image(
     right_ds[~brain_mask_final] = 0
 
     # map to original image size
-    orig_h, orig_w = img.shape[:2]
     left_orig = cv2.resize(left_ds, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST)
     right_orig = cv2.resize(right_ds, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST)
 
@@ -164,11 +172,22 @@ def process_one_image(
         "brain_outline_path": str(brain_outline_path),
         "brain_outline_params": brain_outline_params,
         "brain_mask_params": brain_mask_params,
-        "midline_params": midline_params,
+        "geometry": {
+            "orig_shape_hw": (orig_h, orig_w),
+            "ds_shape_hw": (H_ds, W_ds),
+            "sx": sx,
+            "sy": sy,
+            "roi_ds": roi_ds,
+            "roi_orig": roi_orig,
+            "downsample_factor": float(downsample_factor),
+        },
+        "midline_params_ds": midline_params,
+        "midline_params_orig": midline_params_orig,
         "hip_left_area_px": hip_left_area_px,
         "hip_left_perim_px": hip_left_perim_px,
         "hip_right_area_px": hip_right_area_px,
         "hip_right_perim_px": hip_right_perim_px,
-        "roi": (x0, y0, x1, y1),
+        "roi_ds": roi_ds,
+        "roi_orig": roi_orig,
         "params": params,
     }

@@ -103,26 +103,16 @@ def process_one_image(
     bg_roi = img2_vis[y0:y1, x0:x1]
 
     left_roi_sel, right_roi_sel, sketch_after = pick_hippocampus_and_split_by_midline(
-        sketch_u8_roi=sketch_u8,
-        bg_roi_rgb=bg_roi,
-        midline_params=midline_params,
-        roi_x0=int(x0),
-        roi_y0=int(y0),
-    )
+        sketch_u8_roi=sketch_u8, bg_roi_rgb=bg_roi,
+        midline_params=midline_params, roi_x0=int(x0), roi_y0=int(y0),)
 
-    # дальше как раньше: review UI и т.п.
     left_roi_sel, right_roi_sel = review_and_maybe_edit(
-        img2_rgb=img2_vis,
-        sketch_u8_roi=sketch_after,
-        bg_roi=bg_roi,
-        roi=(x0, y0, x1, y1),
-        left_roi_sel=left_roi_sel,
-        right_roi_sel=right_roi_sel,
-    )
+        img2_rgb=img2_vis, sketch_u8_roi=sketch_after, bg_roi=bg_roi,
+        roi=(x0, y0, x1, y1), left_roi_sel=left_roi_sel, right_roi_sel=right_roi_sel,
+    brain_mask_full=brain_mask_final,)
 
-    # after ALL OK: make each selection a single smooth filled object
-    left_roi_sel = smooth_fill_mask(left_roi_sel, close_ksize=25, open_ksize=7, blur_sigma=2.0)
-    right_roi_sel = smooth_fill_mask(right_roi_sel, close_ksize=25, open_ksize=7, blur_sigma=2.0)
+    left_roi_sel = smooth_fill_mask(left_roi_sel, close_ksize=25, open_ksize=15, blur_sigma=2.0)
+    right_roi_sel = smooth_fill_mask(right_roi_sel, close_ksize=25, open_ksize=15, blur_sigma=2.0)
 
     # build full downsampled masks
     left_ds = np.zeros((H, W), dtype=np.uint8)

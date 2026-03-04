@@ -4,8 +4,6 @@ from typing import Tuple, Dict, Any
 import numpy as np
 import json
 
-
-
 # Helper: select components on a background RGB image
 def select_components_on_background(
     sketch_u8_roi: np.ndarray,

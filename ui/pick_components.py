@@ -1,7 +1,6 @@
 import numpy as np
 import cv2
 from typing import Tuple, Dict, Any
-import numpy as np
 import json
 
 # Helper: select components on a background RGB image
@@ -41,18 +40,34 @@ def select_components_on_background(
         bg = cv2.cvtColor(bg, cv2.COLOR_GRAY2RGB)
     bg_bgr0 = cv2.cvtColor(bg, cv2.COLOR_RGB2BGR)
 
-    cut_mode = False
-    cut_pending: tuple[int, int] | None = None
+    # Modes: pick components, or edit the sketch by drawing strokes
+    mode: str = "pick"  # "pick" | "cut" | "add"
+    pending_pt: tuple[int, int] | None = None
+
     cut_thickness = 7
-    cuts: list[tuple[tuple[int, int], tuple[int, int]]] = []
+    add_thickness = 7
+
+    cuts: list[tuple[tuple[int, int], tuple[int, int]]] = []      # draw value 127 (barrier)
+    adds: list[tuple[tuple[int, int], tuple[int, int]]] = []      # draw value 255 (white reinforcement)
+
+    # Unified undo stack: items are (kind, payload)
+    # kind == "stroke": payload = ("cut"|"add")
+    # kind == "sel": payload = (rr, cc, prev_vals)
+    undo_stack: list[tuple[str, object]] = []
 
     def recompute_labels() -> tuple[np.ndarray, np.ndarray]:
-        # apply cuts onto a fresh copy
+        # apply edits onto a fresh copy
         nonlocal base
         base = base0.copy()
+
+        # cuts first (barriers), then adds (white lines)
         if cuts:
             for (x1, y1), (x2, y2) in cuts:
                 cv2.line(base, (int(x1), int(y1)), (int(x2), int(y2)), 127, int(cut_thickness))
+
+        if adds:
+            for (x1, y1), (x2, y2) in adds:
+                cv2.line(base, (int(x1), int(y1)), (int(x2), int(y2)), 255, int(add_thickness))
 
         fg = (base != 127).astype(np.uint8)
         _num, lab, _stats, _ = cv2.connectedComponentsWithStats(fg, connectivity=8)
@@ -84,9 +99,17 @@ def select_components_on_background(
             green[:] = (0, 255, 0)
             disp[m] = (alpha * green[m] + (1 - alpha) * disp[m]).astype(np.uint8)
 
-        status = "CUT ON" if cut_mode else "CUT OFF"
-        help1 = "C: cut mode | X: clear cuts | ENTER: done | U: undo sel | R: reset sel | ESC: cancel"
-        help2 = "CUT mode: click 2 points to draw a break line"
+        if mode == "cut":
+            status = "MODE: CUT"
+            help2 = "CUT: click 2 points to draw a gray break line"
+        elif mode == "add":
+            status = "MODE: ADD"
+            help2 = "ADD: click 2 points to draw a white reinforcement line"
+        else:
+            status = "MODE: PICK"
+            help2 = "PICK: click regions to toggle selection"
+
+        help1 = "C: CUT | A: ADD | X: clear strokes | ENTER: done | U: undo | R: reset sel | ESC: cancel"
 
         font = cv2.FONT_HERSHEY_SIMPLEX
         scale = 1.0
@@ -116,8 +139,8 @@ def select_components_on_background(
         cv2.putText(disp, txt1, (margin + pad, y1), font, scale, (255, 255, 255), thickness, cv2.LINE_AA)
         cv2.putText(disp, help2, (margin + pad, y2), font, scale, (255, 255, 255), thickness, cv2.LINE_AA)
 
-        if cut_mode:
-            txt = "CUT MODE"
+        if mode in ("cut", "add"):
+            txt = "CUT MODE" if mode == "cut" else "ADD MODE"
             font2 = cv2.FONT_HERSHEY_SIMPLEX
             scale2 = 1.6
             thickness2 = 3
@@ -141,31 +164,38 @@ def select_components_on_background(
             # draw yellow text on top
             cv2.putText(disp, txt, (x, y), font2, scale2, (0, 255, 255), thickness2, cv2.LINE_AA)
 
-        # show pending cut point
-        if cut_mode and cut_pending is not None:
-            cv2.circle(disp, (int(cut_pending[0]), int(cut_pending[1])), 6, (0, 255, 255), -1)
+        # show pending point
+        if mode in ("cut", "add") and pending_pt is not None:
+            cv2.circle(disp, (int(pending_pt[0]), int(pending_pt[1])), 7, (0, 255, 255), -1)
 
         return disp
 
     disp = redraw()
 
     def on_mouse(event, x, y, flags, param):
-        nonlocal disp, selected, cut_pending, lab, fg, edges
+        nonlocal disp, selected, pending_pt, lab, fg, edges
 
         if event != cv2.EVENT_LBUTTONDOWN:
             return
         if x < 0 or y < 0 or x >= lab.shape[1] or y >= lab.shape[0]:
             return
 
-        if cut_mode:
-            # define a cut segment by two clicks
-            if cut_pending is None:
-                cut_pending = (x, y)
+        if mode in ("cut", "add"):
+            # define a stroke segment by two clicks
+            if pending_pt is None:
+                pending_pt = (x, y)
             else:
-                cuts.append((cut_pending, (x, y)))
-                cut_pending = None
+                seg = (pending_pt, (x, y))
+                pending_pt = None
 
-                # recompute connectivity after cut
+                if mode == "cut":
+                    cuts.append(seg)
+                    undo_stack.append(("stroke", "cut"))
+                else:
+                    adds.append(seg)
+                    undo_stack.append(("stroke", "add"))
+
+                # recompute connectivity after edits
                 lab, fg = recompute_labels()
                 edges = compute_edges()
 
@@ -175,16 +205,29 @@ def select_components_on_background(
             disp = redraw()
             return
 
-        # normal mode: toggle component
+        # PICK mode: toggle connected component
         idx = int(lab[y, x])
         if idx <= 0:
             return
+
         mask = (lab == idx)
-        if np.any(selected[mask]):
-            selected[mask] = 0
+        rr, cc = np.where(mask)
+        if rr.size == 0:
+            return
+
+        prev_vals = selected[rr, cc].copy()
+        if np.any(prev_vals):
+            selected[rr, cc] = 0
         else:
-            selected[mask] = 1
+            selected[rr, cc] = 1
+
+        # push undo for this toggle
+        undo_stack.append(("sel", (rr, cc, prev_vals)))
+
+        # keep old history list for compatibility (not used for undo anymore)
+        if not np.any(prev_vals):
             history.append(idx)
+
         disp = redraw()
 
     cv2.namedWindow(window, cv2.WINDOW_NORMAL)
@@ -201,24 +244,45 @@ def select_components_on_background(
             break
 
         if k in (ord('c'), ord('C')):
-            cut_mode = not cut_mode
-            cut_pending = None
+            mode = "pick" if mode == "cut" else "cut"
+            pending_pt = None
+            disp = redraw()
+
+        if k in (ord('a'), ord('A')):
+            mode = "pick" if mode == "add" else "add"
+            pending_pt = None
             disp = redraw()
 
         if k in (ord('x'), ord('X')):
-            # clear cuts and recompute
+            # clear all strokes (cuts/adds) and recompute
             cuts.clear()
-            cut_pending = None
+            adds.clear()
+            pending_pt = None
             lab, fg = recompute_labels()
             edges = compute_edges()
             selected[(base == 127)] = 0
             disp = redraw()
 
         if k in (ord('u'), ord('U')):
-            # undo last selection component by id (best-effort; id may be stale after cuts)
-            if history:
-                idx = history.pop()
-                selected[lab == idx] = 0
+            if undo_stack:
+                kind, payload = undo_stack.pop()
+
+                if kind == "stroke":
+                    stroke_kind = str(payload)
+                    if stroke_kind == "cut" and cuts:
+                        cuts.pop()
+                    elif stroke_kind == "add" and adds:
+                        adds.pop()
+
+                    pending_pt = None
+                    lab, fg = recompute_labels()
+                    edges = compute_edges()
+                    selected[(base == 127)] = 0
+
+                elif kind == "sel":
+                    rr, cc, prev_vals = payload  # type: ignore
+                    selected[rr, cc] = prev_vals
+
                 disp = redraw()
 
         if k in (ord('r'), ord('R')):

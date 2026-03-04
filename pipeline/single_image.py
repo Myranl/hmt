@@ -12,7 +12,7 @@ from ui.pick_components import select_components_on_background
 from ui.review_ui import review_and_maybe_edit  # type: ignore
 from segmentation.postprocess import smooth_fill_mask  # type: ignore
 from preproc.retina import downsample_rgb_cv2, enhance_contrast_and_smooth, retina_subtract_local_mean
-from ui.test_ui import run_ui_and_get_params
+from ui.roi.run_ui_and_get_params import run_ui_and_get_params
 from preproc.quantize import sketch_three_bins, small_components_to_gray
 from analysis.overlay import _overlay_masks_on_original
 from ui.brain_mask.threshold_ui import brain_mask_threshold_ui
@@ -64,6 +64,7 @@ def process_one_image(
     brain_mask_final = (brain_mask_outline.astype(bool) & brain_mask_ds)
 
     midline_params = midline_ui(img2_vis, brain_mask_final, pad=50)
+    print(midline_params)
 
     stem = image_path.stem
     brain_outline_preview = overlay_mask_outline_rgb(img2_vis, brain_mask_final.astype(np.uint8), color=(0, 255, 0), thickness=2)
@@ -72,13 +73,7 @@ def process_one_image(
 
     # --- Step 2: hippocampus-oriented preprocessing restricted by the final brain mask ---
     gray_base = enhance_contrast_and_smooth(img2_proc, clahe_clip=0.10, clahe_kernel=128, smooth_sigma=8.0)
-    gray_used = retina_subtract_local_mean(
-        gray_base,
-        mean_sigma=float(mean_sigma),
-        gain=float(gain),
-        p_lo=1.0,
-        p_hi=99.0,
-    )
+    gray_used = retina_subtract_local_mean(gray_base, mean_sigma=float(mean_sigma), gain=float(gain),  p_lo=1.0, p_hi=99.0)
     # Make outside-brain pixels neutral in the working grayscale too.
     gray_used[~brain_mask_final] = 0.5
 

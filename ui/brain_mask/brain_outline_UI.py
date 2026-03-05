@@ -4,46 +4,70 @@ from ui.brain_mask.mask_utils import _gray_to_u8, _odd, _put_text_box, smooth_co
 from ui.brain_mask.mask_morphology import _fill_holes, _largest_component, _convex_hull_mask, _apply_edit_layers
 from ui.brain_mask.mask_compute import compute_mask
 
-def _connected_component_from_seed(bin_u8: np.ndarray, x: int, y: int, *, search_r: int = 10) -> np.ndarray:
-    """Given a binary 0/255 image and a seed (x,y), return a 0/255 mask of that CC.
+import tkinter as tk
+from tkinter import ttk
 
-    If the click lands on background, we search a small neighborhood for the nearest
-    foreground pixel and use it as the seed.
+from PIL import Image, ImageTk
+
+
+# --- Helper functions ---
+
+def _connected_component_from_seed(mask_u8: np.ndarray, x: int, y: int, *, search_r: int = 12) -> np.ndarray:
+    """Return the connected component (uint8 0/255) selected by a click.
+
+    - `mask_u8` can be 0/1 or 0/255; any non-zero is treated as foreground.
+    - If (x, y) is not on foreground, we search the nearest foreground pixel within `search_r`.
+    - Uses floodFill (fast) to extract the component with 8-connectivity.
     """
-    h, w = bin_u8.shape[:2]
-    if x < 0 or y < 0 or x >= w or y >= h:
-        return np.zeros_like(bin_u8, dtype=np.uint8)
+    m = (mask_u8 > 0).astype(np.uint8) * 255
+    h, w = m.shape[:2]
+    if h == 0 or w == 0:
+        return np.zeros_like(m, dtype=np.uint8)
 
-    fg = (bin_u8 > 0).astype(np.uint8)
+    x = int(np.clip(x, 0, w - 1))
+    y = int(np.clip(y, 0, h - 1))
 
-    # If click is on background, search nearby for a foreground pixel.
-    if fg[y, x] == 0 and search_r > 0:
-        x0 = max(0, x - int(search_r))
-        x1 = min(w, x + int(search_r) + 1)
-        y0 = max(0, y - int(search_r))
-        y1 = min(h, y + int(search_r) + 1)
-        win = fg[y0:y1, x0:x1]
-        ys, xs = np.where(win > 0)
-        if ys.size == 0:
-            return np.zeros_like(bin_u8, dtype=np.uint8)
-        # pick nearest fg pixel
-        dy = ys.astype(np.int32) + y0 - y
-        dx = xs.astype(np.int32) + x0 - x
-        i = int(np.argmin(dy * dy + dx * dx))
-        y = int(ys[i] + y0)
-        x = int(xs[i] + x0)
+    if m[y, x] == 0:
+        xy = _nearest_foreground_xy(m, x, y, r=int(search_r))
+        if xy is None:
+            return np.zeros_like(m, dtype=np.uint8)
+        x, y = xy
 
-    if fg[y, x] == 0:
-        return np.zeros_like(bin_u8, dtype=np.uint8)
+    # Flood fill the foreground component containing (x, y)
+    flood = m.copy()
+    ff = np.zeros((h + 2, w + 2), np.uint8)
 
-    num, lab, _stats, _ = cv2.connectedComponentsWithStats(fg, connectivity=8)
-    if num <= 1:
-        return np.zeros_like(bin_u8, dtype=np.uint8)
-    idx = int(lab[y, x])
-    if idx <= 0:
-        return np.zeros_like(bin_u8, dtype=np.uint8)
-    return (lab == idx).astype(np.uint8) * 255
+    new_val = 128  # marker value distinct from 0 and 255
+    flags = 8  # 8-connectivity
+    cv2.floodFill(flood, ff, (x, y), new_val, flags=flags)
 
+    comp = (flood == new_val).astype(np.uint8) * 255
+    return comp
+
+
+def _nearest_foreground_xy(m_u8_0_255: np.ndarray, x: int, y: int, *, r: int) -> tuple[int, int] | None:
+    """Find nearest foreground pixel (value>0) within radius r. Returns (x, y) or None."""
+    h, w = m_u8_0_255.shape[:2]
+    r = int(max(0, r))
+    if r == 0:
+        return None
+
+    x0 = max(0, x - r)
+    x1 = min(w - 1, x + r)
+    y0 = max(0, y - r)
+    y1 = min(h - 1, y + r)
+
+    roi = m_u8_0_255[y0 : y1 + 1, x0 : x1 + 1]
+    ys, xs = np.where(roi > 0)
+    if ys.size == 0:
+        return None
+
+    # pick closest in Euclidean distance
+    dx = xs.astype(np.int32) + x0 - x
+    dy = ys.astype(np.int32) + y0 - y
+    d2 = dx * dx + dy * dy
+    i = int(np.argmin(d2))
+    return int(xs[i] + x0), int(ys[i] + y0)
 
 def brain_outline_ui(
     img_rgb: np.ndarray,
@@ -56,181 +80,294 @@ def brain_outline_ui(
     min_area: int = 20000,
     downsample_max_side: int = 1200,
 ) -> tuple[np.ndarray, dict]:
-    """OpenCV UI to tune threshold + contour smoothing.
+    """Tk UI to tune threshold + contour smoothing + quick manual mask edits.
+
+    This replaces the OpenCV HighGUI window/trackbars to avoid Windows DPI blur/flicker.
 
     Controls:
-      - thr: threshold (0..255)
+      - thr: threshold (0..255) where tissue is darker
       - smooth: contour smoothing strength (odd kernel size)
       - close/open: morphology kernel sizes
+      - edit_open: how aggressive ERASE detects protrusions
+
+    Mouse:
+      - Click on mask: ERASE protrusion (mode=ERASE)
+      - Click on hull-indent: ADD indentation (mode=ADD)
 
     Keys:
-      - ENTER: accept
-      - ESC: cancel (returns empty mask)
+      - Enter: Accept
+      - Esc: Cancel
+      - E/A: switch ERASE/ADD
+      - U: undo
+      - C: clear manual edits
+      - M: toggle mask overlay
+      - P: toggle protrusions overlay
 
     Returns:
-      (mask_bool, params_dict)
+      (mask_bool_fullres, params_dict)
     """
-    img = img_rgb
 
-    # downsample for speed
-    h0, w0 = img.shape[:2]
+    # ------------------------
+    # Downsample for UI speed
+    # ------------------------
+    img0 = img_rgb
+    h0, w0 = img0.shape[:2]
     scale = min(1.0, downsample_max_side / float(max(h0, w0)))
     if scale < 1.0:
         new_w = int(round(w0 * scale))
         new_h = int(round(h0 * scale))
-        img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        img = cv2.resize(img0, (new_w, new_h), interpolation=cv2.INTER_AREA)
+    else:
+        img = img0
 
-    # base grayscale (u8)
+    # grayscale on the UI image
     g = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    h, w = g.shape[:2]
 
-    win_img = window
-    win_ctrl = f"{window} [controls]"
+    # manual edit layers (UI scale)
+    edit_add_u8 = np.zeros((h, w), dtype=np.uint8)
+    edit_del_u8 = np.zeros((h, w), dtype=np.uint8)
 
-    cv2.namedWindow(win_img, cv2.WINDOW_NORMAL)
-    cv2.namedWindow(win_ctrl, cv2.WINDOW_NORMAL)
-
-    cv2.createTrackbar("thr", win_ctrl, int(init_thr), 255, lambda _: None)
-    cv2.createTrackbar("smooth", win_ctrl, int(init_smooth), 101, lambda _: None)
-    cv2.createTrackbar("close", win_ctrl, int(init_close), 101, lambda _: None)
-    cv2.createTrackbar("open", win_ctrl, int(init_open), 101, lambda _: None)
-    # used only for manual ERASE: how strong the opening is when detecting bumps/spurs
-    cv2.createTrackbar("edit_open", win_ctrl, 41, 151, lambda _: None)
-
-    # Try to place control window to the right of the image window (best-effort)
-    try:
-        cv2.moveWindow(win_img, 50, 50)
-        cv2.moveWindow(win_ctrl, 50 + img.shape[1] + 30, 50)
-    except Exception:
-        pass
-
-    cur_thr = int(init_thr)
-    cur_smk = int(init_smooth)
-    cur_csz = int(init_close)
-    cur_osz = int(init_open)
-
-    edit_add_u8 = np.zeros(g.shape, dtype=np.uint8)
-    edit_del_u8 = np.zeros(g.shape, dtype=np.uint8)
-    mode = {"kind": "erase"}  # dict so inner callbacks can mutate
-
-    # Undo stack for manual edits: store (add_layer, del_layer)
+    # undo stack stores (add_layer, del_layer)
     undo_stack: list[tuple[np.ndarray, np.ndarray]] = []
 
-    def _push_undo() -> None:
-        # store copies of the edit layers
+    def push_undo() -> None:
         undo_stack.append((edit_add_u8.copy(), edit_del_u8.copy()))
-        # cap size to avoid unbounded RAM usage
         if len(undo_stack) > 50:
             undo_stack.pop(0)
 
-    def _undo_last() -> None:
+    def undo_last() -> None:
         if not undo_stack:
             return
         a, d = undo_stack.pop()
         edit_add_u8[:] = a
         edit_del_u8[:] = d
 
+    # state
     state = {
-        "m_u8": np.zeros(g.shape, dtype=np.uint8),
+        "m_u8": np.zeros((h, w), dtype=np.uint8),
+        "mode": "erase",
         "show_mask": True,
         "show_protrusions": True,
+        "accepted": False,
+        "cancelled": False,
+        "dirty": True,
+        "last_thr": None,
+        "last_close": None,
+        "last_open": None,
+        "last_smooth": None,
+        "last_edit_open": None,
     }
 
-    def on_mouse(event, x, y, flags, param):
-        if event != cv2.EVENT_LBUTTONDOWN:
-            return
-        m_current_u8 = state["m_u8"]
-        ix = int(x)
-        iy = int(y)
-        if ix < 0 or iy < 0 or ix >= m_current_u8.shape[1] or iy >= m_current_u8.shape[0]:
-            return
-        if mode["kind"] == "erase":
-            # Remove only outward bumps/spurs: pixels that disappear under a strong opening.
-            # (Convex hull doesn't work: mask is always inside hull.)
-            edit_open = int(cv2.getTrackbarPos("edit_open", win_ctrl))
-            if edit_open < 3:
-                edit_open = 3
-            if edit_open % 2 == 0:
-                edit_open += 1
+    # ------------------------
+    # Tk window + layout
+    # ------------------------
+    root = tk.Tk()
+    root.title(window)
 
-            k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (edit_open, edit_open))
-            base = cv2.morphologyEx(m_current_u8, cv2.MORPH_OPEN, k)
+    # Make the UI reasonably sized on small displays
+    try:
+        sw = int(root.winfo_screenwidth())
+        sh = int(root.winfo_screenheight())
+    except Exception:
+        sw, sh = 1400, 900
 
-            protrusions = cv2.bitwise_and(m_current_u8, cv2.bitwise_not(base))
-            cc = _connected_component_from_seed(protrusions, ix, iy, search_r=12)
-            if cc.sum() > 0:
-                _push_undo()
-                edit_del_u8[:] = cv2.bitwise_or(edit_del_u8, cc)
-        elif mode["kind"] == "add":
-            hull = _convex_hull_mask(m_current_u8)
-            indent = cv2.bitwise_and(hull, cv2.bitwise_not(m_current_u8))
-            cc = _connected_component_from_seed(indent, ix, iy, search_r=12)
-            if cc.sum() > 0:
-                _push_undo()
-                edit_add_u8[:] = cv2.bitwise_or(edit_add_u8, cc)
+    # Main frame
+    frm = ttk.Frame(root, padding=10)
+    frm.grid(row=0, column=0, sticky="nsew")
+    root.columnconfigure(0, weight=1)
+    root.rowconfigure(0, weight=1)
+    frm.columnconfigure(0, weight=1)
+    frm.rowconfigure(0, weight=1)
 
-    cv2.setMouseCallback(win_img, on_mouse)
+    # Canvas (image)
+    canvas = tk.Canvas(frm, highlightthickness=0, bg="#111")
+    canvas.grid(row=0, column=0, sticky="nsew")
 
-    last = None
+    # Right controls
+    ctrl = ttk.Frame(frm)
+    ctrl.grid(row=0, column=1, padx=(12, 0), sticky="ns")
 
-    while True:
-        thr = cv2.getTrackbarPos("thr", win_ctrl)
-        smk = cv2.getTrackbarPos("smooth", win_ctrl)
-        csz = cv2.getTrackbarPos("close", win_ctrl)
-        osz = cv2.getTrackbarPos("open", win_ctrl)
+    # Vars
+    var_thr = tk.IntVar(value=int(init_thr))
+    var_smooth = tk.IntVar(value=int(init_smooth))
+    var_close = tk.IntVar(value=int(init_close))
+    var_open = tk.IntVar(value=int(init_open))
+    var_edit_open = tk.IntVar(value=41)
 
-        cur_thr = int(thr)
-        cur_smk = int(smk)
-        cur_csz = int(csz)
-        cur_osz = int(osz)
+    var_show_mask = tk.BooleanVar(value=True)
+    var_show_prot = tk.BooleanVar(value=True)
 
-        csz = _odd(max(1, csz))
-        osz = _odd(max(1, osz))
-        smk = _odd(max(1, smk))
+    # Labels / instructions
+    lbl_title = ttk.Label(ctrl, text="Brain outline", font=("TkDefaultFont", 13, "bold"))
+    lbl_title.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
 
+    lbl_hint = ttk.Label(
+        ctrl,
+        text=(
+            "Mouse: click to ERASE protrusions / ADD indents\n"
+            "Keys: E/A mode, U undo, C clear, M mask, P protrusions\n"
+            "Enter accept, Esc cancel"
+        ),
+        justify="left",
+    )
+    lbl_hint.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
+
+    # Sliders
+    def _add_slider(row: int, text: str, var: tk.IntVar, frm_to: int) -> None:
+        ttk.Label(ctrl, text=text).grid(row=row, column=0, sticky="w")
+        s = ttk.Scale(ctrl, from_=0, to=frm_to, orient="horizontal", command=lambda _v: mark_dirty())
+        # ttk.Scale is float; sync via set/get
+        s.set(float(var.get()))
+        def _on_var(*_a):
+            try:
+                s.set(float(var.get()))
+            except Exception:
+                pass
+            mark_dirty()
+        var.trace_add("write", _on_var)
+
+        def _on_scale(val: str):
+            try:
+                var.set(int(float(val) + 0.5))
+            except Exception:
+                pass
+        s.configure(command=_on_scale)
+        s.grid(row=row, column=1, sticky="ew", pady=2)
+        ctrl.columnconfigure(1, weight=1)
+
+    def mark_dirty() -> None:
+        state["dirty"] = True
+
+    _add_slider(2, "thr", var_thr, 255)
+    _add_slider(3, "smooth", var_smooth, 101)
+    _add_slider(4, "close", var_close, 101)
+    _add_slider(5, "open", var_open, 101)
+    _add_slider(6, "edit_open", var_edit_open, 151)
+
+    # Toggles
+    def _toggle_mask() -> None:
+        state["show_mask"] = bool(var_show_mask.get())
+        mark_dirty()
+
+    def _toggle_prot() -> None:
+        state["show_protrusions"] = bool(var_show_prot.get())
+        mark_dirty()
+
+    chk_mask = ttk.Checkbutton(ctrl, text="show mask (M)", variable=var_show_mask, command=_toggle_mask)
+    chk_prot = ttk.Checkbutton(ctrl, text="show protrusions (P)", variable=var_show_prot, command=_toggle_prot)
+    chk_mask.grid(row=7, column=0, columnspan=2, sticky="w", pady=(10, 0))
+    chk_prot.grid(row=8, column=0, columnspan=2, sticky="w")
+
+    # Mode indicator
+    mode_var = tk.StringVar(value="MODE: ERASE")
+    lbl_mode = ttk.Label(ctrl, textvariable=mode_var, font=("TkDefaultFont", 12, "bold"))
+    lbl_mode.grid(row=9, column=0, columnspan=2, sticky="w", pady=(12, 6))
+
+    # Metrics
+    metrics_var = tk.StringVar(value="")
+    lbl_metrics = ttk.Label(ctrl, textvariable=metrics_var, justify="left")
+    lbl_metrics.grid(row=10, column=0, columnspan=2, sticky="w", pady=(0, 10))
+
+    # Buttons
+    btns = ttk.Frame(ctrl)
+    btns.grid(row=11, column=0, columnspan=2, sticky="ew")
+
+    def do_accept() -> None:
+        state["accepted"] = True
+        root.destroy()
+
+    def do_cancel() -> None:
+        state["cancelled"] = True
+        root.destroy()
+
+    def do_clear() -> None:
+        push_undo()
+        edit_add_u8[:] = 0
+        edit_del_u8[:] = 0
+        mark_dirty()
+
+    def set_mode(kind: str) -> None:
+        state["mode"] = kind
+        mode_var.set(f"MODE: {kind.upper()}")
+
+    ttk.Button(btns, text="Accept (Enter)", command=do_accept).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+    ttk.Button(btns, text="Cancel (Esc)", command=do_cancel).grid(row=0, column=1, sticky="ew")
+    ttk.Button(btns, text="Undo (U)", command=lambda: (undo_last(), mark_dirty())).grid(row=1, column=0, sticky="ew", pady=(6, 0), padx=(0, 6))
+    ttk.Button(btns, text="Clear edits (C)", command=do_clear).grid(row=1, column=1, sticky="ew", pady=(6, 0))
+    ttk.Button(btns, text="ERASE (E)", command=lambda: set_mode("erase")).grid(row=2, column=0, sticky="ew", pady=(6, 0), padx=(0, 6))
+    ttk.Button(btns, text="ADD (A)", command=lambda: set_mode("add")).grid(row=2, column=1, sticky="ew", pady=(6, 0))
+    btns.columnconfigure(0, weight=1)
+    btns.columnconfigure(1, weight=1)
+
+    # ------------------------
+    # Display scaling (fit to screen)
+    # ------------------------
+    # Fit the UI image into the available canvas area (rough estimate based on screen)
+    max_canvas_w = max(400, min(int(sw * 0.68), int(w)))
+    max_canvas_h = max(300, min(int(sh * 0.80), int(h)))
+
+    disp_scale = min(1.0, max_canvas_w / float(w), max_canvas_h / float(h))
+    disp_w = int(round(w * disp_scale))
+    disp_h = int(round(h * disp_scale))
+    canvas.configure(width=disp_w, height=disp_h)
+
+    # Tk image handle to avoid GC
+    tk_img_ref = {"img": None}
+    canvas_img_id = None
+
+    def _render_vis() -> None:
+        nonlocal canvas_img_id
+
+        # Read slider values
+        thr = int(var_thr.get())
+        smk = int(var_smooth.get())
+        csz = int(var_close.get())
+        osz = int(var_open.get())
+        eop = int(var_edit_open.get())
+
+        # normalize odd sizes
+        csz_odd = _odd(max(1, int(csz)))
+        osz_odd = _odd(max(1, int(osz)))
+        smk_odd = _odd(max(1, int(smk)))
+
+        # compute auto mask
         auto_m = (g < int(thr)).astype(np.uint8) * 255
-
-        k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (csz, csz))
-        k_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (osz, osz))
+        k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (csz_odd, csz_odd))
+        k_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (osz_odd, osz_odd))
         auto_m = cv2.morphologyEx(auto_m, cv2.MORPH_CLOSE, k_close)
         auto_m = cv2.morphologyEx(auto_m, cv2.MORPH_OPEN, k_open)
-
         auto_m = _largest_component(auto_m)
         if int((auto_m > 0).sum()) >= int(min_area):
             auto_m = _fill_holes(auto_m)
 
         m = _apply_edit_layers(auto_m, edit_add_u8, edit_del_u8)
-
         state["m_u8"] = m
 
-        # contour
+        # contour (for metrics)
         cnts, _ = cv2.findContours((m > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         cnt = max(cnts, key=cv2.contourArea) if cnts else None
-        cnt_s = smooth_contour(cnt, smk) if cnt is not None else None
+        cnt_s = smooth_contour(cnt, smk_odd) if cnt is not None else None
 
-        # compute simple metrics on current mask
         area_px = int((m > 0).sum())
         cnt_use = cnt_s if cnt_s is not None else cnt
         perim_px = float(cv2.arcLength(cnt_use, True)) if cnt_use is not None else 0.0
+        metrics_var.set(f"area={area_px} px\nperim={perim_px:.1f} px\nthr={thr}  close={csz_odd} open={osz_odd} smooth={smk_odd}  edit_open={eop}")
 
-        # Build display: RGB image + contours
+        # base RGB for display
         vis_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
-        # main brain mask overlay (semi-transparent green)
-        if state["show_mask"]:
-            alpha = 0.28  # transparency
+        # mask overlay
+        if bool(state["show_mask"]):
+            alpha = 0.28
             green = np.zeros_like(vis_bgr, dtype=np.uint8)
             green[:, :, 1] = 255
             m_bool = (m > 0)
-            # blend only where mask is true
             vis_bgr[m_bool] = cv2.addWeighted(vis_bgr[m_bool], 1.0 - alpha, green[m_bool], alpha, 0.0)
 
-            # optional thin boundary (subtle) for readability
-            if cnt_s is not None:
-                cv2.drawContours(vis_bgr, [cnt_s], -1, (0, 200, 0), 2)
-
-        # show what will be removed by ERASE: protrusions (semi-transparent red) based on edit_open
-        if state["show_protrusions"]:
-            edit_open = int(cv2.getTrackbarPos("edit_open", win_ctrl))
+        # protrusions overlay (subtle red)
+        if bool(state["show_protrusions"]):
+            edit_open = int(eop)
             if edit_open < 3:
                 edit_open = 3
             if edit_open % 2 == 0:
@@ -240,70 +377,151 @@ def brain_outline_ui(
             protrusions = cv2.bitwise_and(m, cv2.bitwise_not(base))
             if int((protrusions > 0).sum()) > 0:
                 p_mask = (protrusions > 0)
-
-                # semi‑transparent red overlay
-                alpha = 0.35
+                alpha = 0.25
                 red = np.zeros_like(vis_bgr, dtype=np.uint8)
                 red[:, :, 2] = 255
+                vis_bgr[p_mask] = cv2.addWeighted(vis_bgr[p_mask], 1.0 - alpha, red[p_mask], alpha, 0.0)
 
-                vis_bgr[p_mask] = cv2.addWeighted(
-                    vis_bgr[p_mask],
-                    1.0 - alpha,
-                    red[p_mask],
-                    alpha,
-                    0.0,
-                )
+        # downscale for canvas
+        if disp_scale < 1.0:
+            vis_bgr = cv2.resize(vis_bgr, (disp_w, disp_h), interpolation=cv2.INTER_AREA)
 
-        # text overlay helpers
+        # convert to Tk image (RGB)
+        vis_rgb = cv2.cvtColor(vis_bgr, cv2.COLOR_BGR2RGB)
+        pil = Image.fromarray(vis_rgb)
+        tk_img = ImageTk.PhotoImage(pil)
+        tk_img_ref["img"] = tk_img
 
-        mode_str = mode["kind"].upper()
-        _put_text_box(vis_bgr, f"Mode: {mode_str} (E) / ADD (A) | U=undo | C=clear | M=mask | P=protrusions", (10, 30))
-        _put_text_box(vis_bgr, f"thr={thr}  close={csz} open={osz} smooth={smk}  edit_open={cv2.getTrackbarPos('edit_open', win_ctrl)}", (10, 62))
-        _put_text_box(vis_bgr, f"area={area_px} px  perim={perim_px:.1f} px", (10, 94))
+        if canvas_img_id is None:
+            canvas_img_id = canvas.create_image(0, 0, anchor="nw", image=tk_img)
+        else:
+            canvas.itemconfigure(canvas_img_id, image=tk_img)
 
-        cv2.imshow(win_img, vis_bgr)
-        k = cv2.waitKey(30) & 0xFF
-        if k in (13, 10):
-            last = (m > 0)
-            break
-        if k == 27:
-            last = None
-            break
-        if k in (ord('e'), ord('E')):
-            mode['kind'] = 'erase'
-        if k in (ord('a'), ord('A')):
-            mode['kind'] = 'add'
-        if k in (ord('u'), ord('U')):
-            _undo_last()
-        if k in (ord('c'), ord('C')):
-            _push_undo()
-            edit_add_u8[:] = 0
-            edit_del_u8[:] = 0
-        if k in (ord('m'), ord('M')):
-            state["show_mask"] = not state["show_mask"]
-        if k in (ord('p'), ord('P')):
-            state["show_protrusions"] = not state["show_protrusions"]
+    def _tick() -> None:
+        # only redraw when something changed
+        if state["dirty"]:
+            state["dirty"] = False
+            _render_vis()
+        root.after(30, _tick)
 
-    cv2.destroyWindow(win_img)
-    cv2.destroyWindow(win_ctrl)
+    # ------------------------
+    # Mouse editing on canvas
+    # ------------------------
+    def _canvas_to_ui_xy(ev) -> tuple[int, int] | None:
+        x = int(ev.x)
+        y = int(ev.y)
+        if x < 0 or y < 0 or x >= disp_w or y >= disp_h:
+            return None
+        # map back to UI image coords
+        ix = int(round(x / disp_scale)) if disp_scale > 0 else x
+        iy = int(round(y / disp_scale)) if disp_scale > 0 else y
+        ix = int(np.clip(ix, 0, w - 1))
+        iy = int(np.clip(iy, 0, h - 1))
+        return ix, iy
 
-    if last is None:
+    def on_click(ev) -> None:
+        xy = _canvas_to_ui_xy(ev)
+        if xy is None:
+            return
+        ix, iy = xy
+
+        m_current_u8 = state["m_u8"]
+        if m_current_u8 is None or m_current_u8.size == 0:
+            return
+
+        if state["mode"] == "erase":
+            edit_open = int(var_edit_open.get())
+            if edit_open < 3:
+                edit_open = 3
+            if edit_open % 2 == 0:
+                edit_open += 1
+            k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (edit_open, edit_open))
+            base = cv2.morphologyEx(m_current_u8, cv2.MORPH_OPEN, k)
+            protrusions = cv2.bitwise_and(m_current_u8, cv2.bitwise_not(base))
+            cc = _connected_component_from_seed(protrusions, ix, iy, search_r=12)
+            if cc.sum() > 0:
+                push_undo()
+                edit_del_u8[:] = cv2.bitwise_or(edit_del_u8, cc)
+                mark_dirty()
+        else:
+            hull = _convex_hull_mask(m_current_u8)
+            indent = cv2.bitwise_and(hull, cv2.bitwise_not(m_current_u8))
+            cc = _connected_component_from_seed(indent, ix, iy, search_r=12)
+            if cc.sum() > 0:
+                push_undo()
+                edit_add_u8[:] = cv2.bitwise_or(edit_add_u8, cc)
+                mark_dirty()
+
+    canvas.bind("<Button-1>", on_click)
+
+    # ------------------------
+    # Keybindings
+    # ------------------------
+    def on_key(ev) -> None:
+        ks = (ev.keysym or "").lower()
+        if ks in ("return", "kp_enter"):
+            do_accept()
+            return
+        if ks == "escape":
+            do_cancel()
+            return
+        if ks == "e":
+            set_mode("erase")
+            return
+        if ks == "a":
+            set_mode("add")
+            return
+        if ks == "u":
+            undo_last()
+            mark_dirty()
+            return
+        if ks == "c":
+            do_clear()
+            return
+        if ks == "m":
+            var_show_mask.set(not bool(var_show_mask.get()))
+            _toggle_mask()
+            return
+        if ks == "p":
+            var_show_prot.set(not bool(var_show_prot.get()))
+            _toggle_prot()
+            return
+
+    root.bind("<Key>", on_key)
+
+    # initial mode
+    set_mode("erase")
+
+    # initial draw
+    mark_dirty()
+    _tick()
+
+    # Start
+    root.mainloop()
+
+    # ------------------------
+    # Finalize
+    # ------------------------
+    if bool(state["cancelled"]) or not bool(state["accepted"]):
         return np.zeros((h0, w0), dtype=bool), {
             "accepted": False,
-            "thr": int(cur_thr),
-            "close": int(_odd(max(1, cur_csz))),
-            "open": int(_odd(max(1, cur_osz))),
-            "smooth": int(_odd(max(1, cur_smk))),
+            "thr": int(var_thr.get()),
+            "close": int(_odd(max(1, int(var_close.get())))),
+            "open": int(_odd(max(1, int(var_open.get())))),
+            "smooth": int(_odd(max(1, int(var_smooth.get())))),
             "scale": float(scale),
             "area_px": 0,
             "perim_px": 0.0,
         }
 
+    last_ui = (state["m_u8"] > 0).astype(np.uint8)
+
     # upscale accepted mask back to original size
     if scale < 1.0:
-        last_u8 = last.astype(np.uint8)
-        last_u8 = cv2.resize(last_u8, (w0, h0), interpolation=cv2.INTER_NEAREST)
-        last = last_u8.astype(bool)
+        last_u8 = cv2.resize(last_ui, (w0, h0), interpolation=cv2.INTER_NEAREST)
+        last = (last_u8 > 0)
+    else:
+        last = (last_ui > 0)
 
     # compute metrics on the final (full-res) accepted mask
     area_px_final = int(last.sum())
@@ -317,10 +535,10 @@ def brain_outline_ui(
 
     params = {
         "accepted": True,
-        "thr": int(thr),
-        "close": int(csz),
-        "open": int(osz),
-        "smooth": int(smk),
+        "thr": int(var_thr.get()),
+        "close": int(_odd(max(1, int(var_close.get())))),
+        "open": int(_odd(max(1, int(var_open.get())))),
+        "smooth": int(_odd(max(1, int(var_smooth.get())))),
         "scale": float(scale),
         "area_px": area_px_final,
         "perim_px": perim_px_final,

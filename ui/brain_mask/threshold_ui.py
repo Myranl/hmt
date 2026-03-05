@@ -4,7 +4,11 @@ from typing import Any
 import cv2
 import numpy as np
 
-from ui.brain_mask.mask_utils import _ensure_rgb_u8, _perimeter_px, _safe_display_overlay
+import tkinter as tk
+from tkinter import ttk
+from PIL import Image, ImageTk
+
+from ui.brain_mask.mask_utils import _ensure_rgb_u8, _perimeter_px
 from ui.brain_mask.mask_compute import compute_mask
 
 @dataclass
@@ -46,15 +50,6 @@ def render(ctx: BrainMaskUIContext, thr_eff: int, thr_base: int, pad_extra: int)
         # main line (magenta)
         cv2.drawContours(bgr, cnts, -1, (255, 0, 255), 2)
         disp = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-
-    # HUD text overlay (best-effort window overlay)
-    area = int(mask_u8.sum())
-    perim = _perimeter_px(mask_u8)
-    msg = (
-        f"thr={thr_base} => {thr_eff} | area={area} px | perim={perim:.1f} px | "
-        f"pad={ctx.pad}px (+{pad_extra}px) | scale={ctx.scale:.3f} | ENTER accept | ESC cancel | R reset"
-    )
-    _safe_display_overlay(ctx.window, msg, 1000)
 
     return disp, mask_u8
 
@@ -149,53 +144,167 @@ def brain_mask_threshold_ui(
         "accepted": False,
     }
 
-    # UI window
-    cv2.namedWindow(window, cv2.WINDOW_NORMAL)
+    # --- Tkinter UI window (cross-platform, consistent with other UIs) ---
+    root = tk.Tk()
+    root.title(window)
 
-    def _on_trackbar(v: int) -> None:
-        state["thr"] = int(v)
+    # Layout: image on the left, controls on the right
+    frm = ttk.Frame(root, padding=10)
+    frm.grid(row=0, column=0, sticky="nsew")
+    root.rowconfigure(0, weight=1)
+    root.columnconfigure(0, weight=1)
+    frm.rowconfigure(0, weight=1)
+    frm.columnconfigure(0, weight=1)
+
+    canvas = tk.Canvas(frm, highlightthickness=0, bg="#111")
+    canvas.grid(row=0, column=0, sticky="nsew")
+
+    ctrl = ttk.Frame(frm)
+    ctrl.grid(row=0, column=1, padx=(12, 0), sticky="ns")
+
+    # Vars for sliders
+    var_thr = tk.IntVar(value=int(thr0))
+    var_pad_extra = tk.IntVar(value=0)
+
+    def mark_dirty() -> None:
         state["need_redraw"] = True
 
-    def _on_trackbar_pad(v: int) -> None:
-        state["pad_extra"] = int(v)
-        state["need_redraw"] = True
+    def _on_thr_changed(*_a) -> None:
+        try:
+            state["thr"] = int(var_thr.get())
+        except Exception:
+            pass
+        mark_dirty()
 
-    cv2.createTrackbar("thr (dark<)", window, thr0, 255, _on_trackbar)
-    cv2.createTrackbar("pad +", window, 0, 200, _on_trackbar_pad)
+    def _on_pad_changed(*_a) -> None:
+        try:
+            state["pad_extra"] = int(var_pad_extra.get())
+        except Exception:
+            pass
+        mark_dirty()
 
-    thr_eff = int(np.clip(state["thr"], 0, 255))
+    var_thr.trace_add("write", _on_thr_changed)
+    var_pad_extra.trace_add("write", _on_pad_changed)
 
-    disp_rgb, mask_u8 = render(ctx, thr_eff, state["thr"], state["pad_extra"])
+    # Controls: labels + sliders + buttons
+    ttk.Label(ctrl, text="Brain mask threshold", font=("TkDefaultFont", 13, "bold")).grid(
+        row=0, column=0, columnspan=2, sticky="w", pady=(0, 6)
+    )
+    ttk.Label(
+        ctrl,
+        text="Adjust threshold and padding.\nEnter: accept   Esc: cancel   R: reset",
+        justify="left",
+    ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
 
-    while True:
+    def _add_slider(row: int, text: str, var: tk.IntVar, frm_to: int) -> None:
+        ttk.Label(ctrl, text=text).grid(row=row, column=0, sticky="w")
+        s = ttk.Scale(ctrl, from_=0, to=frm_to, orient="horizontal")
+        s.set(float(var.get()))
+
+        def _on_scale(val: str) -> None:
+            try:
+                var.set(int(float(val) + 0.5))
+            except Exception:
+                pass
+
+        s.configure(command=_on_scale)
+        s.grid(row=row, column=1, sticky="ew", pady=2)
+        ctrl.columnconfigure(1, weight=1)
+
+    _add_slider(2, "thr (dark<)", var_thr, 255)
+    _add_slider(3, "pad +", var_pad_extra, 200)
+
+    # Metrics label
+    metrics_var = tk.StringVar(value="")
+    ttk.Label(ctrl, textvariable=metrics_var, justify="left").grid(
+        row=4, column=0, columnspan=2, sticky="w", pady=(8, 10)
+    )
+
+    # Buttons
+    btns = ttk.Frame(ctrl)
+    btns.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+    btns.columnconfigure(0, weight=1)
+    btns.columnconfigure(1, weight=1)
+
+    # To hold latest mask from render()
+    mask_holder: dict[str, np.ndarray] = {"mask": np.zeros_like(gray_u8, dtype=np.uint8)}
+
+    def do_accept() -> None:
+        state["accepted"] = True
+        root.destroy()
+
+    def do_cancel() -> None:
+        state["accepted"] = False
+        root.destroy()
+
+    def do_reset() -> None:
+        var_thr.set(int(thr0))
+        var_pad_extra.set(0)
+        state["thr"] = thr0
+        state["pad_extra"] = 0
+        mark_dirty()
+
+    ttk.Button(btns, text="Accept (Enter)", command=do_accept).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+    ttk.Button(btns, text="Cancel (Esc)", command=do_cancel).grid(row=0, column=1, sticky="ew")
+    ttk.Button(btns, text="Reset (R)", command=do_reset).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+
+    # Canvas image handling
+    tk_img_ref: dict[str, ImageTk.PhotoImage | None] = {"img": None}
+    canvas_img_id: list[int] = []
+
+    def _update_canvas() -> None:
+        thr_eff = int(np.clip(state["thr"], 0, 255))
+        disp_rgb, mask_u8 = render(ctx, thr_eff, state["thr"], state["pad_extra"])
+        mask_holder["mask"] = mask_u8.astype(np.uint8)
+
+        # metrics
+        area = int(mask_u8.sum())
+        perim = float(_perimeter_px(mask_u8))
+        metrics_var.set(
+            f"thr={state['thr']} → {thr_eff}\n"
+            f"area={area} px   perim={perim:.1f} px\n"
+            f"pad={pad}px (+{state['pad_extra']} px)   scale={scale:.3f}"
+        )
+
+        pil = Image.fromarray(disp_rgb)
+        tk_img = ImageTk.PhotoImage(pil)
+        tk_img_ref["img"] = tk_img
+
+        h, w = disp_rgb.shape[:2]
+        canvas.configure(width=w, height=h)
+        if not canvas_img_id:
+            canvas_img_id.append(canvas.create_image(0, 0, anchor="nw", image=tk_img))
+        else:
+            canvas.itemconfigure(canvas_img_id[0], image=tk_img)
+
+    def _tick() -> None:
         if state["need_redraw"]:
-            thr_eff = int(np.clip(state["thr"], 0, 255))
-            disp_rgb, mask_u8 = render(ctx, thr_eff, state["thr"], state["pad_extra"])
             state["need_redraw"] = False
+            _update_canvas()
+        root.after(40, _tick)
 
-        # show
-        cv2.imshow(window, cv2.cvtColor(disp_rgb, cv2.COLOR_RGB2BGR))
-        k = cv2.waitKey(20) & 0xFF
+    # Key bindings
+    def _on_key(ev) -> None:
+        ks = (ev.keysym or "").lower()
+        if ks in ("return", "kp_enter"):
+            do_accept()
+        elif ks == "escape":
+            do_cancel()
+        elif ks == "r":
+            do_reset()
 
-        if k in (13, 10):  # Enter
-            state["accepted"] = True
-            break
-        if k == 27:  # ESC
-            state["accepted"] = False
-            break
-        if k in (ord("r"), ord("R")):
-            cv2.setTrackbarPos("thr (dark<)", window, thr0)
-            cv2.setTrackbarPos("pad +", window, 0)
-            state["thr"] = thr0
-            state["pad_extra"] = 0
-            state["need_redraw"] = True
+    root.bind("<Key>", _on_key)
 
-    cv2.destroyWindow(window)
+    # Initial draw + loop
+    mark_dirty()
+    _tick()
+    root.mainloop()
 
     if not state["accepted"]:
         return None
 
     # Upscale mask back to full resolution (if UI was downsampled)
+    mask_u8 = mask_holder["mask"]
     if scale < 1.0:
         mask_u8_full = cv2.resize(mask_u8.astype(np.uint8), (w_full, h_full), interpolation=cv2.INTER_NEAREST)
     else:

@@ -61,10 +61,8 @@ def process_one_image(
     img2_proc = img2.copy()
     img2_proc[~brain_mask_ds] = (255, 255, 255)
 
-    # Step 1: refine brain mask with outline UI, then estimate midline (global brain geometry first)
-    # We intersect the outline-derived mask with the earlier threshold mask so all downstream steps
-    # are constrained to the brain region the user accepted.
-    brain_mask_outline, brain_outline_params = brain_outline_ui(img2_vis)
+    # Step 1: refine brain mask with outline UI (cropped to contour from previous step, minimal reduction)
+    brain_mask_outline, brain_outline_params = brain_outline_ui(img2_vis, init_mask=brain_mask_ds)
     brain_mask_final = (brain_mask_outline.astype(bool) & brain_mask_ds)
 
     midline_params = midline_ui(img2_vis, brain_mask_final, pad=50)

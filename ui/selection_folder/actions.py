@@ -32,7 +32,11 @@ def apply_create_inside_state(var_create_inside, entry_out, btn_browse_out, var_
             p = Path(var_in.get()).expanduser().resolve() / "output"
             var_out.set(str(p))
     else:
-        entry_out.configure(state="readonly")
+        # "readonly" for ttk.Entry; "disabled" for CTkEntry (display-only)
+        try:
+            entry_out.configure(state="readonly")
+        except Exception:
+            entry_out.configure(state="disabled")
         btn_browse_out.configure(state="normal")
     validate_cb()
 

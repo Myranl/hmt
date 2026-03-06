@@ -5,33 +5,37 @@ from PIL import Image, ImageTk
 import csv
 import os
 import tkinter as tk
-from tkinter import filedialog, ttk, messagebox
+from tkinter import filedialog, messagebox
+
+import customtkinter as ctk  # type: ignore[import-untyped]
+
 from config import SETTINGS_PATH, RESULTS_SCHEMA_VERSION, RESULTS_META_NAME
 from ui.selection_folder.actions import browse_in, browse_out, apply_create_inside_state, make_on_cancel_any, make_on_run
 from core.validation import _is_subpath, _can_write_dir, _dir_is_empty, _write_results_meta
 from ui.selection_folder.validation_ui import validate_paths_ui
-from ui.common.tk_after import make_on_destroy
 from ui.selection_folder.settings import load_folder_choices, persist_folder_choices
+from ui.common.tk_after import make_on_destroy
+
 
 def run_folder_and_selection_ui(
     *,
     title: str = "Select input folder and images",
 ) -> tuple[str, str, list[str]] | None:
     """Pick input folder + output folder, then select images via thumbnails.
-    Already-processed images (status=="ok" in <out_dir>/results.csv) are unchecked by default.
-    Returns: (input_dir, out_dir, selected_abs_paths) or None if cancelled.
+    Uses CustomTkinter for the UI. Returns (input_dir, out_dir, selected_abs_paths) or None if cancelled.
     """
 
     exts = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("blue")
 
-
-    # --- Single window UI ---
-    root = tk.Tk()
+    root = ctk.CTk()
     root.title(title)
+    root.minsize(640, 480)
+    root.geometry("720x560")
 
     prev = load_folder_choices()
-
     prev_in = str(prev.get("input_dir", ""))
     prev_out = str(prev.get("output_dir", ""))
     prev_inside = bool(prev.get("create_output_inside", False))
@@ -42,183 +46,153 @@ def run_folder_and_selection_ui(
     var_create_inside = tk.BooleanVar(master=root, value=prev_inside)
     var_process_subfolders = tk.BooleanVar(master=root, value=prev_subfolders)
 
-    # Top area: folder selection
-    folder_frame = ttk.Frame(root, padding=10)
-    folder_frame.grid(row=0, column=0, sticky="ew")
+    # Top: folder selection
+    folder_frame = ctk.CTkFrame(root, fg_color="transparent")
+    folder_frame.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 8))
     root.columnconfigure(0, weight=1)
 
-    # Middle/bottom area: selection list (disabled until folders chosen)
-    main_frame = ttk.Frame(root, padding=10)
-    main_frame.grid(row=1, column=0, sticky="nsew")
-    root.rowconfigure(1, weight=1)
-    main_frame.columnconfigure(0, weight=1)
-    main_frame.rowconfigure(1, weight=1)
-
-    # Status/placeholder
-    status_var = tk.StringVar(value="Select folders above, then press OK.")
-    status_lbl = ttk.Label(main_frame, textvariable=status_var, foreground="gray")
-    status_lbl.grid(row=0, column=0, sticky="w")
-
-    # Scrollable list
-    canvas = tk.Canvas(main_frame, highlightthickness=0)
-    canvas.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
-
-    vsb = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
-    vsb.grid(row=1, column=1, sticky="ns", pady=(10, 0))
-    canvas.configure(yscrollcommand=vsb.set)
-
-    inner = ttk.Frame(canvas)
-    win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
-
-    def on_inner_config(_ev=None):
-        canvas.configure(scrollregion=canvas.bbox("all"))
-
-    def on_canvas_config(ev):
-        canvas.itemconfigure(win_id, width=ev.width)
-
-    inner.bind("<Configure>", on_inner_config)
-    canvas.bind("<Configure>", on_canvas_config)
-
-    # Controls above the list
-    controls = ttk.Frame(main_frame)
-    controls.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 0))
-    controls.columnconfigure(6, weight=1)
-
-    lbl_in = ttk.Label(folder_frame, text="Input folder (images):")
-    lbl_in.grid(row=0, column=0, sticky="w")
-    entry_in = ttk.Entry(folder_frame, textvariable=var_in, state="readonly", width=60)
-    entry_in.grid(row=0, column=1, sticky="ew", padx=(8, 8))
-    btn_browse_in = ttk.Button(folder_frame, text="Browse…")
+    ctk.CTkLabel(folder_frame, text="Input folder (images):").grid(row=0, column=0, sticky="w")
+    entry_in = ctk.CTkEntry(folder_frame, textvariable=var_in, width=400, state="disabled")
+    entry_in.grid(row=0, column=1, sticky="ew", padx=(10, 8))
+    btn_browse_in = ctk.CTkButton(folder_frame, text="Browse…", width=90)
     btn_browse_in.grid(row=0, column=2, sticky="e")
 
-    lbl_out = ttk.Label(folder_frame, text="Output folder (results):")
-    lbl_out.grid(row=1, column=0, sticky="w", pady=(8, 0))
-    entry_out = ttk.Entry(folder_frame, textvariable=var_out, state="readonly", width=60)
-    entry_out.grid(row=1, column=1, sticky="ew", padx=(8, 8), pady=(8, 0))
-    btn_browse_out = ttk.Button(folder_frame, text="Browse…")
-    btn_browse_out.grid(row=1, column=2, sticky="e", pady=(8, 0))
+    ctk.CTkLabel(folder_frame, text="Output folder (results):").grid(row=1, column=0, sticky="w", pady=(10, 0))
+    entry_out = ctk.CTkEntry(folder_frame, textvariable=var_out, width=400, state="disabled")
+    entry_out.grid(row=1, column=1, sticky="ew", padx=(10, 8), pady=(10, 0))
+    btn_browse_out = ctk.CTkButton(folder_frame, text="Browse…", width=90)
+    btn_browse_out.grid(row=1, column=2, sticky="e", pady=(10, 0))
 
-    chk_create_inside = ttk.Checkbutton(
+    chk_create_inside = ctk.CTkCheckBox(
         folder_frame,
         text="Create 'output' inside the input folder",
         variable=var_create_inside,
     )
-    chk_create_inside.grid(row=2, column=0, columnspan=3, sticky="w", pady=(10, 0))
+    chk_create_inside.grid(row=2, column=0, columnspan=3, sticky="w", pady=(14, 0))
 
-    chk_subfolders = ttk.Checkbutton(
+    chk_subfolders = ctk.CTkCheckBox(
         folder_frame,
         text="Process subfolders",
         variable=var_process_subfolders,
     )
-    chk_subfolders.grid(row=3, column=0, columnspan=3, sticky="w", pady=(6, 0))
+    chk_subfolders.grid(row=3, column=0, columnspan=3, sticky="w", pady=(8, 0))
 
-    help_lbl = ttk.Label(
+    ctk.CTkLabel(
         folder_frame,
         text="The output folder will contain (or update) results.csv and last_selection.json.",
-        foreground="gray",
+        text_color="gray",
         wraplength=520,
-        justify="left",
-    )
-    help_lbl.grid(row=4, column=0, columnspan=3, sticky="w", pady=(2, 0))
+    ).grid(row=4, column=0, columnspan=3, sticky="w", pady=(4, 0))
 
-    fmt_lbl = ttk.Label(
+    ctk.CTkLabel(
         folder_frame,
         text="Supported formats: .tif/.tiff, .png, .jpg/.jpeg, .bmp",
-        foreground="gray",
+        text_color="gray",
         wraplength=520,
-        justify="left",
-    )
-    fmt_lbl.grid(row=5, column=0, columnspan=3, sticky="w", pady=(2, 0))
+    ).grid(row=5, column=0, columnspan=3, sticky="w", pady=(2, 0))
 
-    bar = ttk.Frame(folder_frame)
-    bar.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(10, 0))
+    bar = ctk.CTkFrame(folder_frame, fg_color="transparent")
+    bar.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(14, 0))
     bar.columnconfigure(0, weight=1)
-
-    btn_cancel = ttk.Button(bar, text="Cancel")
-    btn_ok = ttk.Button(bar, text="OK", state="disabled")
+    btn_cancel = ctk.CTkButton(bar, text="Cancel", width=90)
+    btn_ok = ctk.CTkButton(bar, text="OK", width=90, state="disabled")
     btn_cancel.grid(row=0, column=0, sticky="w")
     btn_ok.grid(row=0, column=1, sticky="e")
 
     folder_frame.columnconfigure(1, weight=1)
 
-    var_show_processed = tk.BooleanVar(value=True)
-    chk_show_processed = ttk.Checkbutton(controls, text="show processed", variable=var_show_processed)
-    chk_show_processed.grid(row=0, column=0, sticky="w")
+    # Main area: status + scrollable list + controls
+    main_frame = ctk.CTkFrame(root, fg_color="transparent")
+    main_frame.grid(row=1, column=0, sticky="nsew", padx=14, pady=(0, 14))
+    root.rowconfigure(1, weight=1)
+    main_frame.columnconfigure(0, weight=1)
+    main_frame.rowconfigure(1, weight=1)
 
-    btn_all = ttk.Button(controls, text="Select all")
-    btn_none = ttk.Button(controls, text="Select none")
-    btn_invert = ttk.Button(controls, text="Invert")
-    btn_all.grid(row=0, column=1, padx=(12, 0))
+    status_var = tk.StringVar(value="Select folders above, then press OK.")
+    status_lbl = ctk.CTkLabel(main_frame, textvariable=status_var, text_color="gray")
+    status_lbl.grid(row=0, column=0, sticky="w")
+
+    scroll_list = ctk.CTkScrollableFrame(main_frame, width=600, height=220)
+    scroll_list.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
+    scroll_list.columnconfigure(0, weight=1)
+
+    controls = ctk.CTkFrame(main_frame, fg_color="transparent")
+    controls.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+    controls.columnconfigure(4, weight=1)
+
+    var_show_processed = tk.BooleanVar(value=True)
+    chk_show_processed = ctk.CTkCheckBox(controls, text="show processed", variable=var_show_processed)
+    chk_show_processed.grid(row=0, column=0, sticky="w")
+    btn_all = ctk.CTkButton(controls, text="Select all", width=90)
+    btn_none = ctk.CTkButton(controls, text="Select none", width=90)
+    btn_invert = ctk.CTkButton(controls, text="Invert", width=70)
+    btn_all.grid(row=0, column=1, padx=(14, 0))
     btn_none.grid(row=0, column=2, padx=(6, 0))
     btn_invert.grid(row=0, column=3, padx=(6, 0))
+    lbl_count = ctk.CTkLabel(controls, text="")
+    lbl_count.grid(row=0, column=4, sticky="e")
 
-    lbl_count = ttk.Label(controls, text="")
-    lbl_count.grid(row=0, column=6, sticky="e")
-
-    run_bar = ttk.Frame(main_frame)
-    run_bar.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+    run_bar = ctk.CTkFrame(main_frame, fg_color="transparent")
+    run_bar.grid(row=3, column=0, sticky="ew", pady=(10, 0))
     run_bar.columnconfigure(0, weight=1)
-    btn_cancel2 = ttk.Button(run_bar, text="Cancel")
-    btn_run = ttk.Button(run_bar, text="Run selected", state="disabled")
+    btn_cancel2 = ctk.CTkButton(run_bar, text="Cancel", width=90)
+    btn_run = ctk.CTkButton(run_bar, text="Run selected", width=110, state="disabled")
     btn_cancel2.grid(row=0, column=0, sticky="w")
     btn_run.grid(row=0, column=1, sticky="e")
 
-    # State
     thumbs: list[ImageTk.PhotoImage] = []
     vars_sel: list[tk.BooleanVar] = []
     meta: list[dict] = []
     img_paths: list[Path] = []
     processed: set[str] = set()
     csv_path: Path | None = None
-
     result = {"done": False, "selected": []}
+
+    def apply_entry_state() -> None:
+        if var_create_inside.get():
+            entry_out.configure(state="disabled")
+            btn_browse_out.configure(state="disabled")
+            if var_in.get().strip():
+                p = Path(var_in.get()).expanduser().resolve() / "output"
+                var_out.set(str(p))
+        else:
+            entry_out.configure(state="disabled")
+            btn_browse_out.configure(state="normal")
+        validate_paths()
 
     btn_browse_in.configure(command=lambda: browse_in(root, var_in, var_out, var_create_inside, validate_paths))
     btn_browse_out.configure(command=lambda: browse_out(root, var_out, validate_paths))
     chk_create_inside.configure(command=lambda: apply_create_inside_state(var_create_inside, entry_out, btn_browse_out, var_in, var_out, validate_paths))
 
     def rebuild_list() -> None:
-        # Clear previous rows
-        for w in inner.winfo_children():
+        for w in scroll_list.winfo_children():
             try:
                 w.destroy()
             except Exception:
                 pass
-
         show_proc = bool(var_show_processed.get())
         shown = 0
         checked = 0
-
         for i, m in enumerate(meta):
             is_proc = bool(m.get("processed", False))
             if (not show_proc) and is_proc:
                 continue
-
-            row = ttk.Frame(inner, padding=(2, 2))
-            row.grid(row=shown, column=0, sticky="ew")
+            row = ctk.CTkFrame(scroll_list, fg_color=("gray78", "gray28"))
+            row.grid(row=shown, column=0, sticky="ew", pady=2)
             row.columnconfigure(2, weight=1)
-
-            cb = ttk.Checkbutton(row, variable=vars_sel[i])
-            cb.grid(row=0, column=0, sticky="w")
-
-            # thumb
-            lbl_img = ttk.Label(row, image=thumbs[i])
-            lbl_img.grid(row=0, column=1, sticky="w", padx=(8, 8))
-
+            cb = ctk.CTkCheckBox(row, variable=vars_sel[i], text="", width=24)
+            cb.grid(row=0, column=0, sticky="w", padx=(8, 6), pady=6)
+            row_bg = "#3d3d3d" if ctk.get_appearance_mode() == "Dark" else "#c4c4c4"
+            lbl_img = tk.Label(row, image=thumbs[i], bg=row_bg)
+            lbl_img.grid(row=0, column=1, sticky="w", padx=(0, 10), pady=6)
             name = m.get("name") or Path(m["path"]).name
             suffix = " (processed)" if is_proc else ""
-            lbl_txt = ttk.Label(row, text=f"{name}{suffix}")
-            lbl_txt.grid(row=0, column=2, sticky="w")
-
+            ctk.CTkLabel(row, text=f"{name}{suffix}", anchor="w").grid(row=0, column=2, sticky="ew", padx=(0, 8), pady=6)
             if vars_sel[i].get():
                 checked += 1
             shown += 1
-
-        # Count label
         lbl_count.configure(text=f"Selected: {checked} / Shown: {shown} / Total: {len(meta)}")
-
-        # Enable run if anything is selected
-        btn_run.configure(state=("normal" if checked > 0 else "disabled"))
+        btn_run.configure(state="normal" if checked > 0 else "disabled")
 
     def set_all_local(val: bool) -> None:
         show_proc = bool(var_show_processed.get())
@@ -239,7 +213,6 @@ def run_folder_and_selection_ui(
     btn_all.configure(command=lambda: set_all_local(True))
     btn_none.configure(command=lambda: set_all_local(False))
     btn_invert.configure(command=invert_local)
-
     var_show_processed.trace_add("write", lambda *_: rebuild_list())
 
     on_cancel_any = make_on_cancel_any(root=root, result=result)
@@ -267,47 +240,33 @@ def run_folder_and_selection_ui(
                         if p:
                             out.add(str(Path(p).expanduser().resolve()))
         except Exception:
-            return set()
+            pass
         return out
 
     def on_ok() -> None:
         nonlocal img_paths, processed, csv_path
-
-        # Persist last choice (best effort)
         persist_folder_choices(
             input_dir=var_in.get().strip(),
             output_dir=var_out.get().strip(),
             create_output_inside=bool(var_create_inside.get()),
             process_subfolders=bool(var_process_subfolders.get()),
         )
-
         in_path = Path(var_in.get().strip()).expanduser().resolve()
         out_path = Path(var_out.get().strip()).expanduser().resolve()
         out_path.mkdir(parents=True, exist_ok=True)
-
-        # results meta
         _write_results_meta(out_path, schema_version=RESULTS_SCHEMA_VERSION)
-
-        # results csv
         csv_path = out_path / "results.csv"
         processed = load_processed(csv_path)
-
-        # Scan images
         img_paths = iter_images(in_path, subfolders=bool(var_process_subfolders.get()))
         if not img_paths:
             status_var.set("No images found in the selected folder.")
             return
-
-        # Disable top controls while loading
         btn_ok.configure(state="disabled")
         btn_browse_in.configure(state="disabled")
         btn_browse_out.configure(state="disabled")
         chk_create_inside.configure(state="disabled")
-
         status_var.set(f"Found {len(img_paths)} images. Loading thumbnails 0/{len(img_paths)}…")
         root.update_idletasks()
-
-        # Reset list state
         thumbs.clear()
         vars_sel.clear()
         meta.clear()
@@ -331,36 +290,25 @@ def run_folder_and_selection_ui(
                 btn_ok.configure(state="normal")
                 rebuild_list()
                 return
-
             p = img_paths[i]
             p_res = str(p.expanduser().resolve())
             is_proc = p_res in processed
-
             try:
                 thumbs.append(make_thumb(p))
             except Exception:
-                # fallback empty thumb
                 ph = Image.new("RGB", (120, 120), (200, 200, 200))
                 thumbs.append(ImageTk.PhotoImage(ph))
-
-            v = tk.BooleanVar(value=(not is_proc))
-            vars_sel.append(v)
+            vars_sel.append(tk.BooleanVar(value=(not is_proc)))
             meta.append({"path": p_res, "name": p.name, "processed": is_proc})
-
             status_var.set(f"Found {len(img_paths)} images. Loading thumbnails {i+1}/{len(img_paths)}…")
-
-            # Schedule next
             aid = root.after(1, lambda: load_one(i + 1))
             after_ids.append(aid)
-
-            # Render progressively every ~20 items for responsiveness
             if (i % 20) == 0:
                 rebuild_list()
 
         load_one(0)
 
     btn_ok.configure(command=on_ok)
-
     btn_run.configure(
         command=make_on_run(
             root=root,
@@ -388,10 +336,8 @@ def run_folder_and_selection_ui(
     var_out.trace_add("write", validate_paths)
     var_create_inside.trace_add("write", validate_paths)
 
-    # Prevent "invalid command name ... after" errors by cancelling any scheduled work
     after_ids: list[str] = []
     root.bind("<Destroy>", make_on_destroy(root=root, after_ids=after_ids))
-
 
     apply_create_inside_state(var_create_inside, entry_out, btn_browse_out, var_in, var_out, validate_paths)
     validate_paths()
@@ -400,8 +346,4 @@ def run_folder_and_selection_ui(
 
     if not result.get("done", False):
         return None
-
-    in_final = var_in.get().strip()
-    out_final = var_out.get().strip()
-
-    return (in_final, out_final, list(result.get("selected", [])))
+    return (var_in.get().strip(), var_out.get().strip(), list(result.get("selected", [])))

@@ -174,76 +174,77 @@ def process_paths(
     # Keep extra_json last as a safety net for future/unknown keys.
     csv_fieldnames = baseline + promoted + [extra_col]
 
-    def _ensure_header_and_writer():
-        """Open CSV in append mode and ensure header is present.
+    import csv
 
-        If results.csv already exists, reuse its header (append-only, no rewrites).
-        """
-        import csv
-
+    def _append_row(row: dict[str, Any]) -> None:
+        """Append one full row to CSV (open at end of image processing, write, close)."""
         nonlocal csv_fieldnames
-
         write_header = not csv_path.exists()
-
         if not write_header and not csv_fieldnames:
             try:
                 with csv_path.open("r", newline="", encoding="utf-8") as rf:
                     r = csv.reader(rf)
                     hdr = next(r, None)
-                if hdr:
-                    csv_fieldnames = list(hdr)
+                    if hdr:
+                        csv_fieldnames = list(hdr)
             except Exception:
                 pass
+        with csv_path.open("a", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=csv_fieldnames)
+            if write_header:
+                w.writeheader()
+            extra = {k: row[k] for k in row.keys() if k not in csv_fieldnames}
+            if extra:
+                prev = row.get(extra_col)
+                if prev:
+                    try:
+                        prev_obj = json.loads(prev) if isinstance(prev, str) else prev
+                    except Exception:
+                        prev_obj = {"prev": str(prev)}
+                    if isinstance(prev_obj, dict):
+                        prev_obj.update(extra)
+                        extra = prev_obj
+                row = dict(row)
+                row[extra_col] = json.dumps(extra, ensure_ascii=False)
+            safe_row = {k: row.get(k, "") for k in csv_fieldnames}
+            w.writerow(safe_row)
+            f.flush()
 
-        f = csv_path.open("a", newline="", encoding="utf-8")
-        w = csv.DictWriter(f, fieldnames=csv_fieldnames)
-        if write_header:
-            w.writeheader()
-        return f, w
-
-    for p in img_paths:
-        try:
-            res = process_one_image(p, out_dir=out)
-            row = _to_row(res, image_path=p)
-        except Exception as e:
-            import traceback
-
-            row = {
-                "image_path": str(p),
-                "status": "error",
-                "error": repr(e),
-                "error_type": type(e).__name__,
-                "traceback": traceback.format_exc(),
-            }
-
-        # Keep in-memory copy
-        rows.append(row)
-
-        # Write incrementally so we don't lose progress if the run stops mid-way.
-        try:
-            f, w = _ensure_header_and_writer()
+    try:
+        for p in img_paths:
             try:
-                # Protect CSV from rewrites: unknown keys go into extra_json.
-                extra = {k: row[k] for k in row.keys() if k not in csv_fieldnames}
-                if extra:
-                    # keep existing extra_json if present
-                    prev = row.get(extra_col)
-                    if prev:
-                        try:
-                            prev_obj = json.loads(prev) if isinstance(prev, str) else prev
-                        except Exception:
-                            prev_obj = {"prev": str(prev)}
-                        if isinstance(prev_obj, dict):
-                            prev_obj.update(extra)
-                            extra = prev_obj
-                    row[extra_col] = json.dumps(extra, ensure_ascii=False)
+                res = process_one_image(p, out_dir=out)
+                row = _to_row(res, image_path=p)
+            except Exception as e:
+                import traceback
 
-                safe_row = {k: row.get(k, "") for k in csv_fieldnames}
-                w.writerow(safe_row)
-            finally:
-                f.close()
-        except Exception:
-            pass
+                tb_full = traceback.format_exc()
+                tb_lines = [s.strip() for s in tb_full.strip().split("\n") if s.strip()]
+                tb_short = " | ".join(tb_lines[-2:]) if len(tb_lines) >= 2 else tb_full
+                if len(tb_short) > 400:
+                    tb_short = tb_short[:397] + "..."
+
+                row = {
+                    "image_path": str(p),
+                    "status": "error",
+                    "error": repr(e),
+                    "error_type": type(e).__name__,
+                    "traceback": tb_short,
+                }
+
+            rows.append(row)
+            # Write at end of each image's processing (one open/write/close per image).
+            try:
+                _append_row(row)
+            except Exception:
+                pass
+    finally:
+        # If we exited mid-loop, append "skipped" for images we didn't process.
+        for p in img_paths[len(rows) :]:
+            try:
+                _append_row(_to_row(None, image_path=p))
+            except Exception:
+                pass
 
     return rows
 

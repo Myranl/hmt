@@ -209,6 +209,8 @@ def remove_voids_inside_mask(
     are returned as 255 (to be subtracted from the brain mask).
     """
     assert mask_u8.shape[:2] == gray_u8.shape[:2]
+    if (mask_u8 > 0).sum() == 0:
+        return np.zeros_like(mask_u8, dtype=np.uint8)
     gray_float = np.float64(gray_u8)
     low, high = _outline_background_gray_range(
         mask_u8, gray_u8, dilate_r=dilate_r, percentile_low=percentile_low, tolerance=tolerance

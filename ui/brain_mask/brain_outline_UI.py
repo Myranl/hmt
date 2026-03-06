@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from ui.brain_mask.mask_utils import _gray_to_u8, _odd, _put_text_box, smooth_contour
+from ui.brain_mask.mask_utils import _gray_to_u8, _odd, _put_text_box
 from ui.brain_mask.mask_morphology import (
     _fill_holes,
     _largest_component,
@@ -108,6 +108,9 @@ def brain_outline_ui(
         "effective_scale": 1.0,
         "disp_w_zoomed": 0,
         "disp_h_zoomed": 0,
+        "_cache_auto": None,
+        "_cache_auto_key": None,
+        "protrusions_u8": None,
     }
 
     # ------------------------
@@ -295,20 +298,25 @@ def brain_outline_ui(
         osz = int(var_open.get())
         eop = int(var_edit_open.get())
 
-        # normalize odd sizes
         csz_odd = _odd(max(1, int(csz)))
         osz_odd = _odd(max(1, int(osz)))
         smk_odd = _odd(max(1, int(smk)))
 
-        # compute auto mask
-        auto_m = (g < int(thr)).astype(np.uint8) * 255
-        k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (csz_odd, csz_odd))
-        k_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (osz_odd, osz_odd))
-        auto_m = cv2.morphologyEx(auto_m, cv2.MORPH_CLOSE, k_close)
-        auto_m = cv2.morphologyEx(auto_m, cv2.MORPH_OPEN, k_open)
-        auto_m = _largest_component(auto_m)
-        if int((auto_m > 0).sum()) >= int(min_area):
-            auto_m = _fill_holes(auto_m)
+        # cache auto mask when thr/close/open unchanged (biggest cost)
+        cache_key = (thr, csz_odd, osz_odd)
+        if state.get("_cache_auto_key") == cache_key and state.get("_cache_auto") is not None:
+            auto_m = state["_cache_auto"]
+        else:
+            auto_m = (g < int(thr)).astype(np.uint8) * 255
+            k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (csz_odd, csz_odd))
+            k_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (osz_odd, osz_odd))
+            auto_m = cv2.morphologyEx(auto_m, cv2.MORPH_CLOSE, k_close)
+            auto_m = cv2.morphologyEx(auto_m, cv2.MORPH_OPEN, k_open)
+            auto_m = _largest_component(auto_m)
+            if int((auto_m > 0).sum()) >= int(min_area):
+                auto_m = _fill_holes(auto_m)
+            state["_cache_auto"] = auto_m
+            state["_cache_auto_key"] = cache_key
 
         m = _apply_edit_layers(auto_m, edit_add_u8, edit_del_u8)
         if var_remove_voids.get():
@@ -317,15 +325,19 @@ def brain_outline_ui(
             m = cv2.bitwise_and(m, cv2.bitwise_not(to_remove))
         state["m_u8"] = m
 
-        # contour (for metrics)
-        cnts, _ = cv2.findContours((m > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        cnt = max(cnts, key=cv2.contourArea) if cnts else None
-        cnt_s = smooth_contour(cnt, smk_odd) if cnt is not None else None
+        # Protrusions: compute once per frame and cache for fast "erase protrusion" click (no morphology on click)
+        eop_odd = eop if eop >= 3 and eop % 2 == 1 else (eop + 1) if eop >= 3 else 3
+        k_edit = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (eop_odd, eop_odd))
+        base = cv2.morphologyEx(m, cv2.MORPH_OPEN, k_edit)
+        protrusions = cv2.bitwise_and(m, cv2.bitwise_not(base))
+        state["protrusions_u8"] = protrusions.copy()
 
+        # metrics (skip smooth_contour for speed when contour is large)
         area_px = int((m > 0).sum())
-        cnt_use = cnt_s if cnt_s is not None else cnt
-        perim_px = float(cv2.arcLength(cnt_use, True)) if cnt_use is not None else 0.0
-        metrics_var.set(f"area={area_px} px\nperim={perim_px:.1f} px\nthr={thr}  close={csz_odd} open={osz_odd} smooth={smk_odd}  edit_open={eop}")
+        cnts, _ = cv2.findContours((m > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cnt = max(cnts, key=cv2.contourArea) if cnts else None
+        perim_px = float(cv2.arcLength(cnt, True)) if cnt is not None else 0.0
+        metrics_var.set(f"area={area_px} px  perim={perim_px:.0f}  thr={thr}  close={csz_odd} open={osz_odd}  edit_open={eop}")
 
         # base RGB for display
         if var_show_mask_only.get():
@@ -339,12 +351,9 @@ def brain_outline_ui(
                 green[:, :, 1] = 255
                 m_bool = (m > 0)
                 vis_bgr[m_bool] = cv2.addWeighted(vis_bgr[m_bool], 1.0 - alpha, green[m_bool], alpha, 0.0)
-            # protrusions overlay (red)
-            eop_odd = eop if eop >= 3 and eop % 2 == 1 else (eop + 1) if eop >= 3 else 3
-            k_edit = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (eop_odd, eop_odd))
-            base = cv2.morphologyEx(m, cv2.MORPH_OPEN, k_edit)
-            protrusions = cv2.bitwise_and(m, cv2.bitwise_not(base))
-            if int((protrusions > 0).sum()) > 0:
+            # protrusions overlay (red) — use cached protrusions from above
+            protrusions = state.get("protrusions_u8")
+            if protrusions is not None and int((protrusions > 0).sum()) > 0:
                 p_mask = (protrusions > 0)
                 red = np.zeros_like(vis_bgr, dtype=np.uint8)
                 red[:, :, 2] = 255
@@ -377,7 +386,7 @@ def brain_outline_ui(
         if state["dirty"]:
             state["dirty"] = False
             _render_vis()
-        root.after(100, _tick)
+        root.after(150, _tick)
 
     # ------------------------
     # Mouse editing on canvas
@@ -406,11 +415,13 @@ def brain_outline_ui(
             return
         mode = state["mode"]
         if mode == "erase_protrusion":
-            eop = int(var_edit_open.get())
-            eop_odd = eop if eop >= 3 and eop % 2 == 1 else max(3, eop + 1)
-            k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (eop_odd, eop_odd))
-            base = cv2.morphologyEx(m_current, cv2.MORPH_OPEN, k)
-            protrusions = cv2.bitwise_and(m_current, cv2.bitwise_not(base))
+            protrusions = state.get("protrusions_u8")
+            if protrusions is None or protrusions.shape != m_current.shape:
+                eop = int(var_edit_open.get())
+                eop_odd = eop if eop >= 3 and eop % 2 == 1 else max(3, eop + 1)
+                k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (eop_odd, eop_odd))
+                base = cv2.morphologyEx(m_current, cv2.MORPH_OPEN, k)
+                protrusions = cv2.bitwise_and(m_current, cv2.bitwise_not(base))
             cc = _connected_component_from_seed(protrusions, ix, iy, search_r=12)
             if cc.sum() > 0:
                 push_undo()

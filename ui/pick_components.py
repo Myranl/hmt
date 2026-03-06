@@ -58,7 +58,26 @@ def select_components_on_background(
     selected[(base == 127)] = 0
 
     def compute_edges() -> np.ndarray:
-        return cv2.Canny(base, 50, 150)
+        """Crisp boundaries between discrete sketch bins.
+
+        We work directly on the quantized values in `base` instead of Canny.
+        This is more stable for images with a few discrete levels (0 / 127 / 255)
+        and gives cleaner contours after downscaling.
+        """
+        a = np.asarray(base, dtype=np.uint8)
+        h_e, w_e = a.shape[:2]
+        edges = np.zeros((h_e, w_e), dtype=np.uint8)
+
+        # mark boundaries where neighboring pixels belong to different bins
+        diff_r = a[:, 1:] != a[:, :-1]
+        diff_d = a[1:, :] != a[:-1, :]
+
+        edges[:, 1:][diff_r] = 255
+        edges[:, :-1][diff_r] = 255
+        edges[1:, :][diff_d] = 255
+        edges[:-1, :][diff_d] = 255
+
+        return edges
 
     edges = compute_edges()
 
@@ -244,7 +263,7 @@ def select_components_on_background(
     def _refresh() -> None:
         disp = redraw()
         if disp_scale < 1.0:
-            disp = cv2.resize(disp, (disp_w, disp_h))
+            disp = cv2.resize(disp, (disp_w, disp_h), interpolation=cv2.INTER_NEAREST)
         n_sel = int((selected > 0).sum())
         status_var.set(f"Selected: {n_sel} px")
         rgb = cv2.cvtColor(disp, cv2.COLOR_BGR2RGB)

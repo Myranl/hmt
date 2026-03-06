@@ -168,6 +168,7 @@ def brain_outline_ui(
     var_show_mask_only = tk.BooleanVar(value=False)
     var_remove_voids = tk.BooleanVar(value=True)
     var_zoom = tk.IntVar(value=100)
+    var_non_complete_contour = tk.BooleanVar(value=False)
 
     # Labels / instructions
     lbl_title = ttk.Label(ctrl, text="Brain outline", font=("TkDefaultFont", 13, "bold"))
@@ -232,11 +233,15 @@ def brain_outline_ui(
         ctrl, text="Mask only (B&W)", variable=var_show_mask_only, command=mark_dirty
     )
     chk_mask_only.grid(row=12, column=0, columnspan=2, sticky="w")
+    chk_non_complete = ttk.Checkbutton(
+        ctrl, text="Non-complete Contour", variable=var_non_complete_contour, command=mark_dirty
+    )
+    chk_non_complete.grid(row=13, column=0, columnspan=2, sticky="w")
 
     # Mode indicator (short, no param dump to avoid panel reflow)
     mode_var = tk.StringVar(value="MODE: ERASE")
     lbl_mode = ttk.Label(ctrl, textvariable=mode_var, font=("TkDefaultFont", 11, "bold"))
-    lbl_mode.grid(row=13, column=0, columnspan=2, sticky="w", pady=(12, 6))
+    lbl_mode.grid(row=14, column=0, columnspan=2, sticky="w", pady=(12, 6))
 
     # Buttons
     btns = ttk.Frame(ctrl)
@@ -561,6 +566,7 @@ def brain_outline_ui(
         "scale": float(scale),
         "area_px": area_px_final,
         "perim_px": perim_px_final,
+        "non_complete_contour": bool(var_non_complete_contour.get()),
     }
     return last, params
 

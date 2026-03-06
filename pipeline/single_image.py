@@ -16,6 +16,7 @@ from analysis.overlay import _overlay_masks_on_original
 from ui.brain_mask.threshold_ui import brain_mask_threshold_ui
 from ui.brain_mask.brain_outline_UI import brain_outline_ui, overlay_mask_outline_rgb
 from ui.brain_mask.hemisphere import midline_ui
+from ui.contour_editor_ui import edit_contour_ui # new import
 
 from preproc.resize import midline_params_to_orig, ds_scale, roi_ds_to_orig
 
@@ -64,6 +65,14 @@ def process_one_image(
     # Step 1: refine brain mask with outline UI (cropped to contour from previous step, minimal reduction)
     brain_mask_outline, brain_outline_params = brain_outline_ui(img2_vis, init_mask=brain_mask_ds)
     brain_mask_final = (brain_mask_outline.astype(bool) & brain_mask_ds)
+
+    if brain_outline_params.get("non_complete_contour", False):
+        # Call new contour editing UI
+        edited_mask, edit_params = edit_contour_ui(brain_mask_final, img2_vis)
+        if edit_params.get("accepted", False):
+            brain_mask_final = edited_mask.astype(bool)
+        brain_outline_params["corrected"] = edit_params.get("edited", False)
+        brain_outline_params["correction_type"] = edit_params.get("correction_type", "none")
 
     midline_params = midline_ui(img2_vis, brain_mask_final, pad=50)
     midline_params_orig = midline_params_to_orig(midline_params, sx, sy)

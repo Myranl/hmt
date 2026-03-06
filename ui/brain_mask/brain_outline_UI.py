@@ -111,6 +111,9 @@ def brain_outline_ui(
         "_cache_auto": None,
         "_cache_auto_key": None,
         "protrusions_u8": None,
+        "_cache_m_voids_key": None,
+        "_cache_m_after_voids": None,
+        "_cache_protrusions_key": None,
     }
 
     # ------------------------
@@ -230,19 +233,14 @@ def brain_outline_ui(
     )
     chk_mask_only.grid(row=12, column=0, columnspan=2, sticky="w")
 
-    # Mode indicator
-    mode_var = tk.StringVar(value="MODE: ERASE PROTRUSION")
-    lbl_mode = ttk.Label(ctrl, textvariable=mode_var, font=("TkDefaultFont", 12, "bold"))
+    # Mode indicator (short, no param dump to avoid panel reflow)
+    mode_var = tk.StringVar(value="MODE: ERASE")
+    lbl_mode = ttk.Label(ctrl, textvariable=mode_var, font=("TkDefaultFont", 11, "bold"))
     lbl_mode.grid(row=13, column=0, columnspan=2, sticky="w", pady=(12, 6))
-
-    # Metrics
-    metrics_var = tk.StringVar(value="")
-    lbl_metrics = ttk.Label(ctrl, textvariable=metrics_var, justify="left")
-    lbl_metrics.grid(row=14, column=0, columnspan=2, sticky="w", pady=(0, 10))
 
     # Buttons
     btns = ttk.Frame(ctrl)
-    btns.grid(row=15, column=0, columnspan=2, sticky="ew")
+    btns.grid(row=14, column=0, columnspan=2, sticky="ew")
 
     def do_accept() -> None:
         state["accepted"] = True
@@ -319,25 +317,35 @@ def brain_outline_ui(
             state["_cache_auto_key"] = cache_key
 
         m = _apply_edit_layers(auto_m, edit_add_u8, edit_del_u8)
-        if var_remove_voids.get():
-            min_a = int(var_min_void_area.get())
-            to_remove = remove_voids_inside_mask(m, g, min_void_area=min_a)
-            m = cv2.bitwise_and(m, cv2.bitwise_not(to_remove))
+        min_a = int(var_min_void_area.get())
+        remove_voids_on = bool(var_remove_voids.get())
+        # cache m after voids so moving only zoom/display does not recompute remove_voids
+        m_voids_key = (
+            thr, csz_odd, osz_odd, min_a, remove_voids_on,
+            int(np.sum(edit_add_u8 > 0)), int(np.sum(edit_del_u8 > 0)),
+        )
+        if state.get("_cache_m_voids_key") == m_voids_key and state.get("_cache_m_after_voids") is not None:
+            m = state["_cache_m_after_voids"]
+        else:
+            if remove_voids_on:
+                to_remove = remove_voids_inside_mask(m, g, min_void_area=min_a)
+                m = cv2.bitwise_and(m, cv2.bitwise_not(to_remove))
+            state["_cache_m_after_voids"] = m.copy()
+            state["_cache_m_voids_key"] = m_voids_key
+
         state["m_u8"] = m
 
-        # Protrusions: compute once per frame and cache for fast "erase protrusion" click (no morphology on click)
+        # Protrusions: cache by same fingerprint so zoom-only changes skip morphology
         eop_odd = eop if eop >= 3 and eop % 2 == 1 else (eop + 1) if eop >= 3 else 3
-        k_edit = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (eop_odd, eop_odd))
-        base = cv2.morphologyEx(m, cv2.MORPH_OPEN, k_edit)
-        protrusions = cv2.bitwise_and(m, cv2.bitwise_not(base))
-        state["protrusions_u8"] = protrusions.copy()
-
-        # metrics (skip smooth_contour for speed when contour is large)
-        area_px = int((m > 0).sum())
-        cnts, _ = cv2.findContours((m > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        cnt = max(cnts, key=cv2.contourArea) if cnts else None
-        perim_px = float(cv2.arcLength(cnt, True)) if cnt is not None else 0.0
-        metrics_var.set(f"area={area_px} px  perim={perim_px:.0f}  thr={thr}  close={csz_odd} open={osz_odd}  edit_open={eop}")
+        protrusions_key = (m_voids_key, eop_odd)
+        if state.get("_cache_protrusions_key") == protrusions_key and state.get("protrusions_u8") is not None:
+            protrusions = state["protrusions_u8"]
+        else:
+            k_edit = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (eop_odd, eop_odd))
+            base = cv2.morphologyEx(m, cv2.MORPH_OPEN, k_edit)
+            protrusions = cv2.bitwise_and(m, cv2.bitwise_not(base))
+            state["protrusions_u8"] = protrusions.copy()
+            state["_cache_protrusions_key"] = protrusions_key
 
         # base RGB for display
         if var_show_mask_only.get():

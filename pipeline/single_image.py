@@ -12,11 +12,11 @@ from preproc.retina import downsample_rgb_cv2, enhance_contrast_and_smooth, reti
 from ui.roi.run_ui_and_get_params import run_ui_and_get_params
 from preproc.quantize import sketch_three_bins, small_components_to_gray, apply_midline_cut_to_sketch
 
-from analysis.overlay import _overlay_masks_on_original
-from ui.brain_mask.threshold_ui import brain_mask_threshold_ui
-from ui.brain_mask.brain_outline_UI import brain_outline_ui, overlay_mask_outline_rgb
-from ui.brain_mask.hemisphere import midline_ui
-from ui.contour_editor_ui import edit_contour_ui # new import
+from viz.overlay import _overlay_masks_on_original
+from ui.brain.threshold_ui import brain_mask_threshold_ui
+from ui.brain.brain_outline_UI import brain_outline_ui, overlay_mask_outline_rgb
+from ui.brain.hemisphere import midline_ui
+from ui.brain.contour_editor_ui import edit_contour_ui
 
 from preproc.resize import midline_params_to_orig, ds_scale, roi_ds_to_orig
 

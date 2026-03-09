@@ -1,7 +1,7 @@
 import numpy as np
 import tkinter as tk
 from tkinter import ttk
-from ui.tk_utils import left_panel_photo
+from ui.common.tk_utils import left_panel_photo
 def run_roi_ui(*, img_rgb: np.ndarray) -> dict | None:
     root = tk.Tk()
     root.title("Step 1/2: pick ROI")

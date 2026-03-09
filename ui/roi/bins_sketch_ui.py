@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import ImageTk
 from preproc.quantize import sketch_three_bins, small_components_to_gray
-from ui.tk_utils import to_photo_u8, overlay_grid_and_roi, left_panel_photo
+from ui.common.tk_utils import to_photo_u8, overlay_grid_and_roi, left_panel_photo
 
 def run_bins_ui(*, gray: np.ndarray, img_rgb: np.ndarray, roi: tuple[int, int, int, int], grid_on: bool,
                 grid_step: int, t1_init: float = 0.33, t2_init: float = 0.66) -> dict | None:

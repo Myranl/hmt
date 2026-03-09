@@ -1,7 +1,7 @@
 from pipeline.batch import process_folder
 from pathlib import Path
 from pipeline.batch import process_paths
-from ui.selection_folder.main_selection import run_folder_and_selection_ui
+from ui.file_selection.main_selection import run_folder_and_selection_ui
 
 
 if __name__ == "__main__":

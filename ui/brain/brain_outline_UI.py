@@ -16,7 +16,26 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 
 
-# --- Helper functions ---
+def _bind_tooltip(widget: tk.Widget, text: str) -> None:
+    tip_holder: list = []
+
+    def on_enter(ev: tk.Event) -> None:
+        if tip_holder:
+            return
+        tw = tk.Toplevel(widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_geometry(f"+{ev.x_root + 12}+{ev.y_root + 12}")
+        lbl = ttk.Label(tw, text=text, justify="left", padding=6)
+        lbl.pack()
+        tip_holder.append(tw)
+
+    def on_leave(_ev: tk.Event) -> None:
+        if tip_holder:
+            tip_holder[0].destroy()
+            tip_holder.clear()
+
+    widget.bind("<Enter>", on_enter)
+    widget.bind("<Leave>", on_leave)
 
 
 def brain_outline_ui(
@@ -113,6 +132,7 @@ def brain_outline_ui(
         "protrusions_u8": None,
         "_cache_m_voids_key": None,
         "_cache_m_after_voids": None,
+        "_cache_to_remove": None,
         "_cache_protrusions_key": None,
     }
 
@@ -170,25 +190,33 @@ def brain_outline_ui(
     var_zoom = tk.IntVar(value=100)
     var_non_complete_contour = tk.BooleanVar(value=False)
 
-    # Labels / instructions
+    def mark_dirty() -> None:
+        state["dirty"] = True
+
+    # Title + short hint
     lbl_title = ttk.Label(ctrl, text="Brain outline", font=("TkDefaultFont", 13, "bold"))
-    lbl_title.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
+    lbl_title.grid(row=0, column=0, sticky="w", pady=(0, 2))
+    lbl_help_title = ttk.Label(ctrl, text=" ? ", cursor="question_arrow")
+    lbl_help_title.grid(row=0, column=1, sticky="w")
+    _bind_tooltip(
+        lbl_help_title,
+        "E/W/A = edit modes (erase protrusion, erase white blob, add indent).\n"
+        "U = undo, C = clear edits, M = toggle mask.\nEnter = accept, Esc = cancel.",
+    )
 
     lbl_hint = ttk.Label(
         ctrl,
-        text=(
-            "Click: E=erase protrusion, W=erase white blob, A=add indent.\n"
-            "U undo, C clear, M mask. Enter accept, Esc cancel"
-        ),
+        text="E/W/A = modes · U/C/M = undo, clear, mask · Enter/Esc = accept, cancel",
         justify="left",
     )
-    lbl_hint.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
+    lbl_hint.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 8))
 
-    # Sliders
-    def _add_slider(row: int, text: str, var: tk.IntVar, frm_to: int) -> None:
-        ttk.Label(ctrl, text=text).grid(row=row, column=0, sticky="w")
-        s = ttk.Scale(ctrl, from_=0, to=frm_to, orient="horizontal", command=lambda _v: mark_dirty())
-        # ttk.Scale is float; sync via set/get
+    def _add_slider_row(parent: ttk.Frame, row: int, label_text: str, tooltip_text: str, var: tk.IntVar, frm_to: int) -> None:
+        ttk.Label(parent, text=label_text).grid(row=row, column=0, sticky="w", padx=(0, 2))
+        q = ttk.Label(parent, text="?", cursor="question_arrow")
+        q.grid(row=row, column=1, sticky="w")
+        _bind_tooltip(q, tooltip_text)
+        s = ttk.Scale(parent, from_=0, to=frm_to, orient="horizontal", command=lambda _v: mark_dirty())
         s.set(float(var.get()))
         def _on_var(*_a):
             try:
@@ -197,27 +225,40 @@ def brain_outline_ui(
                 pass
             mark_dirty()
         var.trace_add("write", _on_var)
-
         def _on_scale(val: str):
             try:
                 var.set(int(float(val) + 0.5))
             except Exception:
                 pass
         s.configure(command=_on_scale)
-        s.grid(row=row, column=1, sticky="ew", pady=2)
-        ctrl.columnconfigure(1, weight=1)
+        s.grid(row=row, column=2, sticky="ew", pady=2)
+        parent.columnconfigure(2, weight=1)
 
-    def mark_dirty() -> None:
-        state["dirty"] = True
+    # --- Threshold & morphology ---
+    lf_morph = ttk.LabelFrame(ctrl, text="Threshold & morphology", padding=6)
+    lf_morph.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+    lf_morph.columnconfigure(2, weight=1)
+    _add_slider_row(lf_morph, 0, "thr", "Binarization threshold: pixels darker than this are considered tissue.", var_thr, 255)
+    _add_slider_row(lf_morph, 1, "smooth", "Contour smoothing (kernel size).", var_smooth, 101)
+    _add_slider_row(lf_morph, 2, "close", "Morphological closing: fills small holes in the mask.", var_close, 101)
+    _add_slider_row(lf_morph, 3, "open", "Morphological opening: removes small protrusions.", var_open, 101)
 
-    _add_slider(2, "thr", var_thr, 255)
-    _add_slider(3, "smooth", var_smooth, 101)
-    _add_slider(4, "close", var_close, 101)
-    _add_slider(5, "open", var_open, 101)
-    _add_slider(6, "edit_open (protrusions)", var_edit_open, 101)
-    _add_slider(7, "min void area (px)", var_min_void_area, 5000)
-    ttk.Label(ctrl, text="zoom %").grid(row=8, column=0, sticky="w")
-    s_zoom = ttk.Scale(ctrl, from_=100, to=200, orient="horizontal")
+    # --- Edit ---
+    lf_edit = ttk.LabelFrame(ctrl, text="Edit", padding=6)
+    lf_edit.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+    lf_edit.columnconfigure(2, weight=1)
+    _add_slider_row(lf_edit, 0, "edit_open (protrusions)", "Radius for erasing protrusions (E): larger value affects a bigger area per click.", var_edit_open, 101)
+    _add_slider_row(lf_edit, 1, "min void area (px)", "Voids (holes) smaller than this area in pixels are automatically filled.", var_min_void_area, 5000)
+
+    # --- View ---
+    lf_view = ttk.LabelFrame(ctrl, text="View", padding=6)
+    lf_view.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+    lf_view.columnconfigure(2, weight=1)
+    ttk.Label(lf_view, text="zoom %").grid(row=0, column=0, sticky="w", padx=(0, 2))
+    q_zoom = ttk.Label(lf_view, text="?", cursor="question_arrow")
+    q_zoom.grid(row=0, column=1, sticky="w")
+    _bind_tooltip(q_zoom, "Display zoom level.")
+    s_zoom = ttk.Scale(lf_view, from_=100, to=200, orient="horizontal")
     s_zoom.set(float(var_zoom.get()))
     def _on_zoom_var(*_a):
         try:
@@ -232,37 +273,53 @@ def brain_outline_ui(
         except Exception:
             pass
     s_zoom.configure(command=_on_zoom_scale)
-    s_zoom.grid(row=8, column=1, sticky="ew", pady=2)
-    ctrl.columnconfigure(1, weight=1)
+    s_zoom.grid(row=0, column=2, sticky="ew", pady=2)
 
-    # Toggles
     def _toggle_mask() -> None:
         state["show_mask"] = bool(var_show_mask.get())
         mark_dirty()
 
-    chk_mask = ttk.Checkbutton(ctrl, text="show mask (M)", variable=var_show_mask, command=_toggle_mask)
-    chk_mask.grid(row=10, column=0, columnspan=2, sticky="w", pady=(10, 0))
-    chk_voids = ttk.Checkbutton(
-        ctrl, text="Remove voids (recomputed when sliders change)", variable=var_remove_voids, command=mark_dirty
-    )
-    chk_voids.grid(row=11, column=0, columnspan=2, sticky="w")
-    chk_mask_only = ttk.Checkbutton(
-        ctrl, text="Mask only (B&W)", variable=var_show_mask_only, command=mark_dirty
-    )
-    chk_mask_only.grid(row=12, column=0, columnspan=2, sticky="w")
-    chk_non_complete = ttk.Checkbutton(
-        ctrl, text="Non-complete Contour", variable=var_non_complete_contour, command=mark_dirty
-    )
-    chk_non_complete.grid(row=13, column=0, columnspan=2, sticky="w")
+    def _chk_with_help(parent: ttk.Frame, row: int, text: str, var: tk.BooleanVar, cmd, tooltip: str) -> None:
+        chk = ttk.Checkbutton(parent, text=text, variable=var, command=cmd)
+        chk.grid(row=row, column=0, columnspan=2, sticky="w")
+        q = ttk.Label(parent, text="?", cursor="question_arrow")
+        q.grid(row=row, column=2, sticky="w")
+        _bind_tooltip(q, tooltip)
 
-    # Mode indicator (short, no param dump to avoid panel reflow)
+    _chk_with_help(lf_view, 1, "Show mask (M)", var_show_mask, _toggle_mask, "Show or hide the outline overlay on the image.")
+    _chk_with_help(lf_view, 2, "Remove voids", var_remove_voids, mark_dirty, "Automatically fill holes inside the mask (recomputed when sliders change).")
+    _chk_with_help(lf_view, 3, "Mask only (B&W)", var_show_mask_only, mark_dirty, "Show only the mask (black & white), no background image.")
+
+    # --- Contour incomplete ---
+    frm_non_complete = ttk.LabelFrame(ctrl, text="  Contour incomplete?  ", padding=8)
+    frm_non_complete.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+    row_chk = ttk.Frame(frm_non_complete)
+    row_chk.pack(anchor="w")
+    chk_non_complete = ttk.Checkbutton(
+        row_chk,
+        text="Non-complete contour (fix in next step)",
+        variable=var_non_complete_contour,
+        command=mark_dirty,
+    )
+    chk_non_complete.pack(side="left")
+    q_non_complete = ttk.Label(row_chk, text=" ? ", cursor="question_arrow")
+    q_non_complete.pack(side="left")
+    _bind_tooltip(q_non_complete, "Check if the outline has a gap or is broken; will be handled in the next step.")
+    ttk.Label(
+        frm_non_complete,
+        text="Check if the outline is broken or has a gap.",
+        font=("TkDefaultFont", 9),
+        foreground="gray",
+    ).pack(anchor="w")
+
+    # Mode indicator
     mode_var = tk.StringVar(value="MODE: ERASE")
     lbl_mode = ttk.Label(ctrl, textvariable=mode_var, font=("TkDefaultFont", 11, "bold"))
-    lbl_mode.grid(row=14, column=0, columnspan=2, sticky="w", pady=(12, 6))
+    lbl_mode.grid(row=6, column=0, columnspan=2, sticky="w", pady=(8, 6))
 
     # Buttons
     btns = ttk.Frame(ctrl)
-    btns.grid(row=14, column=0, columnspan=2, sticky="ew")
+    btns.grid(row=7, column=0, columnspan=2, sticky="ew")
 
     def do_accept() -> None:
         state["accepted"] = True
@@ -351,7 +408,10 @@ def brain_outline_ui(
         else:
             if remove_voids_on:
                 to_remove = remove_voids_inside_mask(m, g, min_void_area=min_a)
+                state["_cache_to_remove"] = to_remove.copy()
                 m = cv2.bitwise_and(m, cv2.bitwise_not(to_remove))
+            else:
+                state["_cache_to_remove"] = None
             state["_cache_m_after_voids"] = m.copy()
             state["_cache_m_voids_key"] = m_voids_key
 
@@ -381,13 +441,18 @@ def brain_outline_ui(
                 green[:, :, 1] = 255
                 m_bool = (m > 0)
                 vis_bgr[m_bool] = cv2.addWeighted(vis_bgr[m_bool], 1.0 - alpha, green[m_bool], alpha, 0.0)
-            # protrusions overlay (red) — use cached protrusions from above
+            # voids overlay: removed regions in white
+            to_remove = state.get("_cache_to_remove")
+            if to_remove is not None and int((to_remove > 0).sum()) > 0:
+                v_mask = (to_remove > 0)
+                vis_bgr[v_mask] = cv2.addWeighted(vis_bgr[v_mask], 0.4, np.ones_like(vis_bgr[v_mask], dtype=np.uint8) * 255, 0.6, 0.0)
+            # protrusions overlay (bright red)
             protrusions = state.get("protrusions_u8")
             if protrusions is not None and int((protrusions > 0).sum()) > 0:
                 p_mask = (protrusions > 0)
                 red = np.zeros_like(vis_bgr, dtype=np.uint8)
                 red[:, :, 2] = 255
-                vis_bgr[p_mask] = cv2.addWeighted(vis_bgr[p_mask], 1.0 - 0.25, red[p_mask], 0.25, 0.0)
+                vis_bgr[p_mask] = cv2.addWeighted(vis_bgr[p_mask], 1.0 - 0.55, red[p_mask], 0.55, 0.0)
 
         # apply zoom and scale for canvas
         zoom_factor = max(1.0, min(3.0, int(var_zoom.get()) / 100.0))

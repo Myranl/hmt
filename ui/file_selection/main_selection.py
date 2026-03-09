@@ -298,7 +298,9 @@ def run_folder_and_selection_ui(
             except Exception:
                 ph = Image.new("RGB", (120, 120), (200, 200, 200))
                 thumbs.append(ImageTk.PhotoImage(ph))
-            vars_sel.append(tk.BooleanVar(value=(not is_proc)))
+            v = tk.BooleanVar(value=(not is_proc))
+            v.trace_add("write", lambda *_: rebuild_list())
+            vars_sel.append(v)
             meta.append({"path": p_res, "name": p.name, "processed": is_proc})
             status_var.set(f"Found {len(img_paths)} images. Loading thumbnails {i+1}/{len(img_paths)}…")
             aid = root.after(1, lambda: load_one(i + 1))

@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import ImageTk
 from preproc.quantize import sketch_three_bins, small_components_to_gray
-from ui.common.tk_utils import to_photo_u8, overlay_grid_and_roi, left_panel_photo
+from ui.common.tk_utils import to_photo_u8
 
 def run_bins_ui(*, gray: np.ndarray, img_rgb: np.ndarray, roi: tuple[int, int, int, int], grid_on: bool,
                 grid_step: int, t1_init: float = 0.33, t2_init: float = 0.66) -> dict | None:
@@ -22,56 +22,58 @@ def run_bins_ui(*, gray: np.ndarray, img_rgb: np.ndarray, roi: tuple[int, int, i
     frm.grid(row=0, column=0, sticky="nsew")
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
+    frm.columnconfigure(1, weight=1)
+    frm.rowconfigure(1, weight=1)
 
-    # controls
+    # left: controls
     ctrl = ttk.Frame(frm)
-    ctrl.grid(row=0, column=0, sticky="ew")
-    ctrl.columnconfigure(2, weight=1)
-    ctrl.columnconfigure(5, weight=1)
+    ctrl.grid(row=0, column=0, rowspan=2, padx=(0, 12), sticky="nw")
 
-    ttk.Label(ctrl, text="t1").grid(row=0, column=0, padx=(0, 6), sticky="w")
+    lf_thresh = ttk.LabelFrame(ctrl, text="Пороги t1 / t2")
+    lf_thresh.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 8))
+    lf_thresh.columnconfigure(1, weight=1)
+
     var_t1 = tk.DoubleVar(value=float(T1_INIT))
-    lbl_t1 = ttk.Label(ctrl, text=f"{var_t1.get():.2f}")
-    lbl_t1.grid(row=0, column=1, padx=(0, 10), sticky="w")
-    s_t1 = ttk.Scale(ctrl, from_=0.0, to=1.0, orient="horizontal", variable=var_t1)
-    s_t1.grid(row=0, column=2, padx=(0, 14), sticky="ew")
+    lbl_t1 = ttk.Label(lf_thresh, text=f"{var_t1.get():.2f}", width=4)
+    ttk.Label(lf_thresh, text="t1").grid(row=0, column=0, padx=(0, 4), sticky="w")
+    lbl_t1.grid(row=0, column=1, padx=(0, 6), sticky="e")
+    s_t1 = ttk.Scale(lf_thresh, from_=0.0, to=1.0, orient="horizontal", variable=var_t1)
+    s_t1.grid(row=1, column=0, columnspan=2, padx=(0, 0), pady=(2, 6), sticky="ew")
 
-    ttk.Label(ctrl, text="t2").grid(row=0, column=3, padx=(0, 6), sticky="w")
     var_t2 = tk.DoubleVar(value=float(T2_INIT))
-    lbl_t2 = ttk.Label(ctrl, text=f"{var_t2.get():.2f}")
-    lbl_t2.grid(row=0, column=4, padx=(0, 10), sticky="w")
-    s_t2 = ttk.Scale(ctrl, from_=0.0, to=1.0, orient="horizontal", variable=var_t2)
-    s_t2.grid(row=0, column=5, padx=(0, 14), sticky="ew")
+    lbl_t2 = ttk.Label(lf_thresh, text=f"{var_t2.get():.2f}", width=4)
+    ttk.Label(lf_thresh, text="t2").grid(row=2, column=0, padx=(0, 4), sticky="w")
+    lbl_t2.grid(row=2, column=1, padx=(0, 6), sticky="e")
+    s_t2 = ttk.Scale(lf_thresh, from_=0.0, to=1.0, orient="horizontal", variable=var_t2)
+    s_t2.grid(row=3, column=0, columnspan=2, padx=(0, 0), pady=(2, 0), sticky="ew")
 
     var_small_to_gray = tk.BooleanVar(value=True)
-    ttk.Checkbutton(ctrl, text="small→gray", variable=var_small_to_gray).grid(row=0, column=6, padx=(12, 6), sticky="w")
-
-    ttk.Label(ctrl, text="N").grid(row=0, column=7, padx=(0, 6), sticky="e")
+    ttk.Checkbutton(ctrl, text="small→gray", variable=var_small_to_gray).grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 2))
+    ttk.Label(ctrl, text="N").grid(row=2, column=0, padx=(0, 4), sticky="w")
     var_small_N = tk.StringVar(value="900")
-    ttk.Entry(ctrl, textvariable=var_small_N, width=6).grid(row=0, column=8, sticky="w")
-
+    ttk.Entry(ctrl, textvariable=var_small_N, width=6).grid(row=2, column=1, sticky="w")
     btn_update = ttk.Button(ctrl, text="Update")
-    btn_update.grid(row=0, column=9, padx=(12, 0), sticky="e")
+    btn_update.grid(row=3, column=0, sticky="w", pady=(8, 4))
 
-    lbl_status = ttk.Label(ctrl, text=f"ROI fixed: ({x0},{y0},{x1},{y1})")
-    lbl_status.grid(row=1, column=0, columnspan=10, sticky="w", pady=(6, 0))
+    lbl_status = ttk.Label(ctrl, text=f"ROI: ({x0},{y0},{x1},{y1})")
+    lbl_status.grid(row=4, column=0, sticky="w", pady=(4, 0))
 
-    # image panels
+    btn_cancel = ttk.Button(ctrl, text="Cancel")
+    btn_cancel.grid(row=5, column=0, sticky="w", pady=(12, 2))
+    btn_save = ttk.Button(ctrl, text="Save")
+    btn_save.grid(row=6, column=0, sticky="w", pady=(0, 0))
+
+    # right: image panels (only two)
     panes = ttk.Frame(frm)
-    panes.grid(row=1, column=0, pady=(10, 0), sticky="nsew")
-    frm.rowconfigure(1, weight=1)
-    frm.columnconfigure(0, weight=1)
-
-    lbl_left = ttk.Label(panes)
-    lbl_left.grid(row=0, column=0, rowspan=2, padx=(0, 10), sticky="n")
+    panes.grid(row=1, column=1, pady=(10, 0), sticky="nsew")
 
     lbl_right = ttk.Label(panes)
-    lbl_right.grid(row=0, column=1, padx=(10, 0), sticky="n")
+    lbl_right.grid(row=0, column=0, sticky="n")
 
     lbl_right_overlay = ttk.Label(panes)
-    lbl_right_overlay.grid(row=1, column=1, padx=(10, 0), pady=(8, 0), sticky="n")
+    lbl_right_overlay.grid(row=1, column=0, pady=(8, 0), sticky="n")
 
-    state = {"ph_left": None, "ph_right": None, "ph_right_overlay": None, "sketch_u8": None}
+    state = {"ph_right": None, "ph_right_overlay": None, "sketch_u8": None}
     chosen: dict = {"done": False}
 
     def _roi_overlay_photo(
@@ -151,34 +153,23 @@ def run_bins_ui(*, gray: np.ndarray, img_rgb: np.ndarray, roi: tuple[int, int, i
 
             state["sketch_u8"] = sketch_u8
 
-            # scale left image so it always fits the screen
             try:
                 screen_w = root.winfo_screenwidth()
                 screen_h = root.winfo_screenheight()
-                max_side_left = int(min(screen_w * 0.45, screen_h * 0.75))
+                max_side = int(min(screen_w * 0.5, screen_h * 0.75))
             except Exception:
-                max_side_left = 750
+                max_side = 750
 
-            ph_left = left_panel_photo(
-                img_rgb,
-                max_side=max_side_left,
-                grid_on=grid_on,
-                step=grid_step,
-                roi=roi,
-            )
-            ph_right = to_photo_u8(sketch_u8, max_side=max_side_left)
+            ph_right = to_photo_u8(sketch_u8, max_side=max_side)
             roi_rgb = img_rgb[y0:y1, x0:x1]
-            ph_right_overlay = _roi_overlay_photo(roi_rgb, sketch_u8, max_side=max_side_left, alpha=0.35)
+            ph_right_overlay = _roi_overlay_photo(roi_rgb, sketch_u8, max_side=max_side, alpha=0.35)
 
-            state["ph_left"] = ph_left
             state["ph_right"] = ph_right
             state["ph_right_overlay"] = ph_right_overlay
 
-            lbl_left.configure(image=ph_left)
             lbl_right.configure(image=ph_right)
             lbl_right_overlay.configure(image=ph_right_overlay)
 
-            lbl_left.image = ph_left
             lbl_right.image = ph_right
             lbl_right_overlay.image = ph_right_overlay
 
@@ -237,13 +228,8 @@ def run_bins_ui(*, gray: np.ndarray, img_rgb: np.ndarray, roi: tuple[int, int, i
     s_t2.configure(command=_on_t2_change)
 
     btn_update.configure(command=render)
-
-    bar = ttk.Frame(frm)
-    bar.grid(row=2, column=0, pady=(12, 0), sticky="ew")
-    bar.columnconfigure(0, weight=1)
-
-    ttk.Button(bar, text="Cancel", command=on_cancel).grid(row=0, column=0, sticky="w")
-    ttk.Button(bar, text="Save", command=on_save).grid(row=0, column=1, padx=(10, 0), sticky="e")
+    btn_cancel.configure(command=on_cancel)
+    btn_save.configure(command=on_save)
 
     root.bind("<Return>", lambda _e: on_save())
     root.bind("<Escape>", lambda _e: on_cancel())

@@ -196,10 +196,10 @@ def brain_mask_threshold_ui(
         justify="left",
     ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
 
-    def _add_slider(row: int, text: str, var: tk.IntVar, frm_to: int) -> None:
+    def _add_slider(row: int, text: str, var: tk.IntVar, frm_to: int, frm_from: int = 0) -> None:
         ttk.Label(ctrl, text=text).grid(row=row, column=0, sticky="w")
-        s = ttk.Scale(ctrl, from_=0, to=frm_to, orient="horizontal")
-        s.set(float(var.get()))
+        s = ttk.Scale(ctrl, from_=frm_from, to=frm_to, orient="horizontal")
+        s.set(float(np.clip(var.get(), frm_from, frm_to)))
 
         def _on_scale(val: str) -> None:
             try:
@@ -211,7 +211,13 @@ def brain_mask_threshold_ui(
         s.grid(row=row, column=1, sticky="ew", pady=2)
         ctrl.columnconfigure(1, weight=1)
 
-    _add_slider(2, "thr (dark<)", var_thr, 255)
+    # Threshold slider: min = Otsu −20% (so we can go a bit left), max = 255; floor at 50
+    thr_slider_min = max(50, int(round(thr0 * 0.80)))
+    thr_slider_max = 255
+    var_thr.set(int(np.clip(var_thr.get(), thr_slider_min, thr_slider_max)))
+    state["thr"] = int(var_thr.get())
+    THR_SLIDER_MIN, THR_SLIDER_MAX = thr_slider_min, thr_slider_max
+    _add_slider(2, "thr (dark<)", var_thr, THR_SLIDER_MAX, frm_from=THR_SLIDER_MIN)
     _add_slider(3, "pad +", var_pad_extra, 200)
 
     # Metrics label
@@ -238,9 +244,9 @@ def brain_mask_threshold_ui(
         root.destroy()
 
     def do_reset() -> None:
-        var_thr.set(int(thr0))
+        var_thr.set(int(np.clip(thr0, THR_SLIDER_MIN, THR_SLIDER_MAX)))
         var_pad_extra.set(0)
-        state["thr"] = thr0
+        state["thr"] = int(var_thr.get())
         state["pad_extra"] = 0
         mark_dirty()
 

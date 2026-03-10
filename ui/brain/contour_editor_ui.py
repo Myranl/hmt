@@ -176,6 +176,11 @@ def edit_contour_ui(
         _refresh()
 
     def apply_break() -> None:
+        """Break: remove the selected perimeter segment, without drawing a straight chord.
+
+        Conceptually: perimeter := perimeter \\ arc(i,j).
+        We approximate it by erasing a band along the chosen contour arc.
+        """
         nonlocal mask_u8, pending_i, pending_j
         pts = _get_contour_points(mask_u8)
         if pts is None or pending_i is None or pending_j is None:
@@ -184,13 +189,36 @@ def edit_contour_ui(
             pending_i = pending_j = None
             _refresh()
             return
-        push_undo()
-        new_contour = _apply_break(pts, pending_i, pending_j)
-        mask_u8 = np.zeros_like(mask_u8)
-        cv2.fillPoly(mask_u8, [new_contour], 255)
+
+        # Choose the shorter of the two arcs between the points as the one to remove
+        len_ij = _arc_length(pts, pending_i, pending_j)
+        len_ji = _arc_length(pts, pending_j, pending_i)
+        remove_arc_idx = _arc_indices(
+            pts,
+            pending_i,
+            pending_j,
+            keep_shorter=(len_ji < len_ij),
+        )
+        arc_pts = pts[remove_arc_idx]
+
+        # Build a band mask along that arc and subtract it from the brain mask
+        band = np.zeros_like(mask_u8, dtype=np.uint8)
+        if len(arc_pts) >= 2:
+            for k in range(len(arc_pts) - 1):
+                x1, y1 = int(arc_pts[k, 0]), int(arc_pts[k, 1])
+                x2, y2 = int(arc_pts[k + 1, 0]), int(arc_pts[k + 1, 1])
+                cv2.line(band, (x1, y1), (x2, y2), 255, thickness=5)
+            # Slight dilation so the gap is clearly visible and survives contour extraction
+            k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+            band = cv2.dilate(band, k, iterations=1)
+
+        if (band > 0).any():
+            push_undo()
+            mask_u8 = cv2.bitwise_and(mask_u8, cv2.bitwise_not(band))
+            result_params["edited"] = True
+            result_params["correction_type"] = "break"
+
         pending_i = pending_j = None
-        result_params["edited"] = True
-        result_params["correction_type"] = "break"
         _refresh()
 
     def apply_bridge() -> None:
@@ -268,19 +296,17 @@ def edit_contour_ui(
         # Contour
         if pts is not None:
             cv2.polylines(vis, [pts], True, (0, 255, 0), 2)
-        # Pending Break: gray arc + chord + two points
+        # Pending Break: gray arc (that will be removed) + two points
         if mode == "break" and pts is not None and pending_i is not None:
             cv2.circle(vis, (int(pts[pending_i, 0]), int(pts[pending_i, 1])), 8, (0, 255, 255), 2)
             if pending_j is not None:
                 cv2.circle(vis, (int(pts[pending_j, 0]), int(pts[pending_j, 1])), 8, (0, 255, 255), 2)
-                # Draw arc that will be removed (gray) and chord (yellow)
+                # Draw arc that will be removed (gray)
                 len_12 = _arc_length(pts, pending_i, pending_j)
                 len_21 = _arc_length(pts, pending_j, pending_i)
                 remove_arc = _arc_indices(pts, pending_i, pending_j, keep_shorter=(len_21 < len_12))
                 arc_pts = pts[remove_arc]
                 cv2.polylines(vis, [arc_pts], False, (128, 128, 128), 3)
-                cv2.line(vis, (int(pts[pending_i, 0]), int(pts[pending_i, 1])),
-                         (int(pts[pending_j, 0]), int(pts[pending_j, 1])), (0, 255, 255), 2)
         # Pending Missing: endpoints + curve preview
         if mode == "missing" and pts is not None and pending_i is not None:
             cv2.circle(vis, (int(pts[pending_i, 0]), int(pts[pending_i, 1])), 8, (0, 255, 255), 2)

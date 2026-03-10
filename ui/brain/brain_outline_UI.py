@@ -198,15 +198,9 @@ def brain_outline_ui(
     lbl_title.grid(row=0, column=0, sticky="w", pady=(0, 2))
     lbl_help_title = ttk.Label(ctrl, text=" ? ", cursor="question_arrow")
     lbl_help_title.grid(row=0, column=1, sticky="w")
-    _bind_tooltip(
-        lbl_help_title,
-        "E/W/A = edit modes (erase protrusion, erase white blob, add indent).\n"
-        "U = undo, C = clear edits, M = toggle mask.\nEnter = accept, Esc = cancel.",
-    )
-
     lbl_hint = ttk.Label(
         ctrl,
-        text="E/W/A = modes · U/C/M = undo, clear, mask · Enter/Esc = accept, cancel",
+        text="E/W/A/B = modes · U/C/M = undo, clear, mask · Enter/Esc = accept, cancel",
         justify="left",
     )
     lbl_hint.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 8))
@@ -323,10 +317,20 @@ def brain_outline_ui(
 
     def do_accept() -> None:
         state["accepted"] = True
+        for aid in _tick_id:
+            try:
+                root.after_cancel(aid)
+            except Exception:
+                pass
         root.destroy()
 
     def do_cancel() -> None:
         state["cancelled"] = True
+        for aid in _tick_id:
+            try:
+                root.after_cancel(aid)
+            except Exception:
+                pass
         root.destroy()
 
     def do_clear() -> None:
@@ -345,7 +349,8 @@ def brain_outline_ui(
     ttk.Button(btns, text="Clear edits (C)", command=do_clear).grid(row=1, column=1, sticky="ew", pady=(6, 0))
     ttk.Button(btns, text="Erase protrusion (E)", command=lambda: set_mode("erase_protrusion")).grid(row=2, column=0, sticky="ew", pady=(6, 0), padx=(0, 6))
     ttk.Button(btns, text="Erase white (W)", command=lambda: set_mode("erase_white")).grid(row=2, column=1, sticky="ew", pady=(6, 0))
-    ttk.Button(btns, text="Add indent (A)", command=lambda: set_mode("add_indent")).grid(row=3, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+    ttk.Button(btns, text="Add white (B)", command=lambda: set_mode("add_white")).grid(row=3, column=0, sticky="ew", pady=(6, 0), padx=(0, 6))
+    ttk.Button(btns, text="Add indent (A)", command=lambda: set_mode("add_indent")).grid(row=3, column=1, sticky="ew", pady=(6, 0))
     btns.columnconfigure(0, weight=1)
     btns.columnconfigure(1, weight=1)
 
@@ -407,9 +412,19 @@ def brain_outline_ui(
             m = state["_cache_m_after_voids"]
         else:
             if remove_voids_on:
+                # auto-voids proposal
                 to_remove = remove_voids_inside_mask(m, g, min_void_area=min_a)
+                # do not remove regions that the user explicitly added back
+                if edit_add_u8 is not None:
+                    to_remove = cv2.bitwise_and(
+                        to_remove,
+                        cv2.bitwise_not((edit_add_u8 > 0).astype(np.uint8) * 255),
+                    )
                 state["_cache_to_remove"] = to_remove.copy()
                 m = cv2.bitwise_and(m, cv2.bitwise_not(to_remove))
+                # ensure user-added pixels stay in the mask even if auto-voids disagree
+                if edit_add_u8 is not None:
+                    m = cv2.bitwise_or(m, (edit_add_u8 > 0).astype(np.uint8) * 255)
             else:
                 state["_cache_to_remove"] = None
             state["_cache_m_after_voids"] = m.copy()
@@ -477,11 +492,14 @@ def brain_outline_ui(
             canvas.itemconfigure(canvas_img_id, image=tk_img)
         canvas.coords(canvas_img_id, 0, 0)
 
+    _tick_id: list = []  # mutable to store id for cancel on destroy
+
     def _tick() -> None:
         if state["dirty"]:
             state["dirty"] = False
             _render_vis()
-        root.after(150, _tick)
+        _tick_id.clear()
+        _tick_id.append(root.after(150, _tick))
 
     # ------------------------
     # Mouse editing on canvas
@@ -528,6 +546,23 @@ def brain_outline_ui(
                 push_undo()
                 edit_del_u8[:] = cv2.bitwise_or(edit_del_u8, cc)
                 mark_dirty()
+        elif mode == "add_white":
+            # Add a white void back into the mask.
+            # Here we don't try to be clever with intensities – we just take
+            # the connected background component (0 region) inside the current
+            # brain contour and add it to the mask.
+            #
+            # 1) background pixels (where current mask == 0)
+            bg_u8 = ((m_current == 0).astype(np.uint8)) * 255
+            # 2) restrict to convex hull so we never grow outside the brain
+            hull_u8 = _convex_hull_mask(m_current)
+            search_u8 = cv2.bitwise_and(bg_u8, hull_u8)
+            # 3) connected component from the click
+            cc = _connected_component_from_seed(search_u8, ix, iy, search_r=15)
+            if cc.sum() > 0:
+                push_undo()
+                edit_add_u8[:] = cv2.bitwise_or(edit_add_u8, cc)
+                mark_dirty()
         else:
             hull = _convex_hull_mask(m_current)
             indent = cv2.bitwise_and(hull, cv2.bitwise_not(m_current))
@@ -573,6 +608,9 @@ def brain_outline_ui(
         if ks == "w":
             set_mode("erase_white")
             return
+        if ks == "b":
+            set_mode("add_white")
+            return
         if ks == "a":
             set_mode("add_indent")
             return
@@ -589,6 +627,17 @@ def brain_outline_ui(
             return
 
     root.bind("<Key>", on_key)
+
+    def _on_destroy(_ev=None) -> None:
+        for aid in _tick_id:
+            try:
+                root.after_cancel(aid)
+            except Exception:
+                pass
+        _tick_id.clear()
+
+    root.protocol("WM_DELETE_WINDOW", do_cancel)
+    root.bind("<Destroy>", _on_destroy)
 
     # initial mode
     set_mode("erase_protrusion")

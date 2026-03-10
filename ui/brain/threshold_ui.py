@@ -237,10 +237,20 @@ def brain_mask_threshold_ui(
 
     def do_accept() -> None:
         state["accepted"] = True
+        for aid in _tick_id:
+            try:
+                root.after_cancel(aid)
+            except Exception:
+                pass
         root.destroy()
 
     def do_cancel() -> None:
         state["accepted"] = False
+        for aid in _tick_id:
+            try:
+                root.after_cancel(aid)
+            except Exception:
+                pass
         root.destroy()
 
     def do_reset() -> None:
@@ -283,11 +293,14 @@ def brain_mask_threshold_ui(
         else:
             canvas.itemconfigure(canvas_img_id[0], image=tk_img)
 
+    _tick_id: list = []
+
     def _tick() -> None:
         if state["need_redraw"]:
             state["need_redraw"] = False
             _update_canvas()
-        root.after(40, _tick)
+        _tick_id.clear()
+        _tick_id.append(root.after(40, _tick))
 
     # Key bindings
     def _on_key(ev) -> None:
@@ -300,6 +313,17 @@ def brain_mask_threshold_ui(
             do_reset()
 
     root.bind("<Key>", _on_key)
+
+    def _on_destroy(_ev=None) -> None:
+        for aid in _tick_id:
+            try:
+                root.after_cancel(aid)
+            except Exception:
+                pass
+        _tick_id.clear()
+
+    root.protocol("WM_DELETE_WINDOW", do_cancel)
+    root.bind("<Destroy>", _on_destroy)
 
     # Initial draw + loop
     mark_dirty()

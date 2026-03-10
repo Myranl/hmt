@@ -127,8 +127,9 @@ def process_one_image(
         roi=(x0, y0, x1, y1), left_roi_sel=left_roi_sel, right_roi_sel=right_roi_sel,
     brain_mask_full=brain_mask_final,)
 
-    left_roi_sel = smooth_fill_mask(left_roi_sel, close_ksize=25, open_ksize=15, blur_sigma=2.0)
-    right_roi_sel = smooth_fill_mask(right_roi_sel, close_ksize=25, open_ksize=15, blur_sigma=2.0)
+    # Use same smooth_fill params as in review_ui so saved overlay matches what user saw
+    left_roi_sel = smooth_fill_mask(left_roi_sel, close_ksize=25, open_ksize=7, blur_sigma=2.0)
+    right_roi_sel = smooth_fill_mask(right_roi_sel, close_ksize=25, open_ksize=7, blur_sigma=2.0)
 
     # build full downsampled masks
     left_ds = np.zeros((H, W), dtype=np.uint8)

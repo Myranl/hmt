@@ -54,6 +54,10 @@ def make_on_cancel_any(*, root, result):
     def _cb() -> None:
         result["done"] = False
         result["selected"] = []
+        try:
+            root.quit()
+        except Exception:
+            pass
         root.destroy()
 
     return _cb
@@ -88,6 +92,10 @@ def make_on_run(*, root, result, vars_sel, meta, var_in, var_out, json_module):
         except Exception:
             pass
 
+        try:
+            root.quit()
+        except Exception:
+            pass
         root.destroy()
 
     return _cb

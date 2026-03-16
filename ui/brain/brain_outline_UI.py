@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 from ui.brain.mask_utils import _gray_to_u8, _odd, _put_text_box
+from ui.brain.threshold_ui import brain_mask_threshold_ui
 from ui.brain.mask_morphology import (
     _fill_holes,
     _largest_component,
@@ -14,6 +15,36 @@ import tkinter as tk
 from tkinter import ttk
 
 from PIL import Image, ImageTk
+
+
+def _enforce_no_internal_voids(mask_u8: np.ndarray) -> np.ndarray:
+    """Force mask to have no internal holes / branches.
+
+    For each row and column we keep only a single contiguous run between
+    the first and last foreground pixel; intersection of row- and
+    column-wise strips yields a simply connected, hole-free mask.
+    """
+    m = (mask_u8 > 0).astype(np.uint8)
+    h, w = m.shape
+
+    row_filled = np.zeros_like(m, dtype=np.uint8)
+    for y in range(h):
+        xs = np.where(m[y] > 0)[0]
+        if xs.size == 0:
+            continue
+        x0, x1 = xs[0], xs[-1]
+        row_filled[y, x0 : x1 + 1] = 1
+
+    col_filled = np.zeros_like(m, dtype=np.uint8)
+    for x in range(w):
+        ys = np.where(m[:, x] > 0)[0]
+        if ys.size == 0:
+            continue
+        y0, y1 = ys[0], ys[-1]
+        col_filled[y0 : y1 + 1, x] = 1
+
+    simple = (row_filled & col_filled).astype(np.uint8) * 255
+    return simple
 
 
 def _bind_tooltip(widget: tk.Widget, text: str) -> None:
@@ -130,9 +161,6 @@ def brain_outline_ui(
         "_cache_auto": None,
         "_cache_auto_key": None,
         "protrusions_u8": None,
-        "_cache_m_voids_key": None,
-        "_cache_m_after_voids": None,
-        "_cache_to_remove": None,
         "_cache_protrusions_key": None,
     }
 
@@ -182,11 +210,9 @@ def brain_outline_ui(
     var_close = tk.IntVar(value=int(init_close))
     var_open = tk.IntVar(value=int(init_open))
     var_edit_open = tk.IntVar(value=41)
-    var_min_void_area = tk.IntVar(value=500)
 
     var_show_mask = tk.BooleanVar(value=True)
     var_show_mask_only = tk.BooleanVar(value=False)
-    var_remove_voids = tk.BooleanVar(value=True)
     var_zoom = tk.IntVar(value=100)
     var_non_complete_contour = tk.BooleanVar(value=False)
 
@@ -241,8 +267,14 @@ def brain_outline_ui(
     lf_edit = ttk.LabelFrame(ctrl, text="Edit", padding=6)
     lf_edit.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 6))
     lf_edit.columnconfigure(2, weight=1)
-    _add_slider_row(lf_edit, 0, "edit_open (protrusions)", "Radius for erasing protrusions (E): larger value affects a bigger area per click.", var_edit_open, 101)
-    _add_slider_row(lf_edit, 1, "min void area (px)", "Voids (holes) smaller than this area in pixels are automatically filled.", var_min_void_area, 5000)
+    _add_slider_row(
+        lf_edit,
+        0,
+        "edit_open (protrusions)",
+        "Radius for erasing protrusions (E): larger value affects a bigger area per click.",
+        var_edit_open,
+        101,
+    )
 
     # --- View ---
     lf_view = ttk.LabelFrame(ctrl, text="View", padding=6)
@@ -281,8 +313,7 @@ def brain_outline_ui(
         _bind_tooltip(q, tooltip)
 
     _chk_with_help(lf_view, 1, "Show mask (M)", var_show_mask, _toggle_mask, "Show or hide the outline overlay on the image.")
-    _chk_with_help(lf_view, 2, "Remove voids", var_remove_voids, mark_dirty, "Automatically fill holes inside the mask (recomputed when sliders change).")
-    _chk_with_help(lf_view, 3, "Mask only (B&W)", var_show_mask_only, mark_dirty, "Show only the mask (black & white), no background image.")
+    _chk_with_help(lf_view, 2, "Mask only (B&W)", var_show_mask_only, mark_dirty, "Show only the mask (black & white), no background image.")
 
     # --- Contour incomplete ---
     frm_non_complete = ttk.LabelFrame(ctrl, text="  Contour incomplete?  ", padding=8)
@@ -307,7 +338,7 @@ def brain_outline_ui(
     ).pack(anchor="w")
 
     # Mode indicator
-    mode_var = tk.StringVar(value="MODE: ERASE")
+    mode_var = tk.StringVar(value="MODE: ERASE PROTRUSION")
     lbl_mode = ttk.Label(ctrl, textvariable=mode_var, font=("TkDefaultFont", 11, "bold"))
     lbl_mode.grid(row=6, column=0, columnspan=2, sticky="w", pady=(8, 6))
 
@@ -347,10 +378,41 @@ def brain_outline_ui(
     ttk.Button(btns, text="Cancel (Esc)", command=do_cancel).grid(row=0, column=1, sticky="ew")
     ttk.Button(btns, text="Undo (U)", command=lambda: (undo_last(), mark_dirty())).grid(row=1, column=0, sticky="ew", pady=(6, 0), padx=(0, 6))
     ttk.Button(btns, text="Clear edits (C)", command=do_clear).grid(row=1, column=1, sticky="ew", pady=(6, 0))
-    ttk.Button(btns, text="Erase protrusion (E)", command=lambda: set_mode("erase_protrusion")).grid(row=2, column=0, sticky="ew", pady=(6, 0), padx=(0, 6))
-    ttk.Button(btns, text="Erase white (W)", command=lambda: set_mode("erase_white")).grid(row=2, column=1, sticky="ew", pady=(6, 0))
-    ttk.Button(btns, text="Add white (B)", command=lambda: set_mode("add_white")).grid(row=3, column=0, sticky="ew", pady=(6, 0), padx=(0, 6))
-    ttk.Button(btns, text="Add indent (A)", command=lambda: set_mode("add_indent")).grid(row=3, column=1, sticky="ew", pady=(6, 0))
+    ttk.Button(btns, text="Erase protrusion (E)", command=lambda: set_mode("erase_protrusion")).grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+
+    ttk.Button(
+        btns,
+        text="Erase protrusions (brush)",
+        command=lambda: set_mode("erase_protrusion_brush"),
+    ).grid(row=3, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+
+    def do_rerun_threshold() -> None:
+        gray0 = cv2.cvtColor(img0, cv2.COLOR_RGB2GRAY)
+        bm_res = brain_mask_threshold_ui(gray0, img0, pad=50)
+        if bm_res is None:
+            return
+        mask_full = bm_res.mask  # bool, (h0, w0)
+        if crop_bbox is not None:
+            y0, x0, y1, x1 = crop_bbox
+            mask_crop = (mask_full[y0:y1, x0:x1].astype(np.uint8)) * 255
+        else:
+            if scale < 1.0:
+                new_w, new_h = int(round(w0 * scale)), int(round(h0 * scale))
+                mask_crop = cv2.resize(
+                    (mask_full.astype(np.uint8) * 255), (new_w, new_h), interpolation=cv2.INTER_NEAREST
+                )
+            else:
+                mask_crop = (mask_full.astype(np.uint8)) * 255
+        state["_cache_auto"] = mask_crop.copy()
+        state["_cache_auto_key"] = ("threshold_override",)
+        edit_add_u8[:] = 0
+        edit_del_u8[:] = 0
+        mark_dirty()
+        _render_vis()
+
+    ttk.Button(btns, text="Re-run threshold…", command=do_rerun_threshold).grid(
+        row=3, column=0, columnspan=2, sticky="ew", pady=(6, 0)
+    )
     btns.columnconfigure(0, weight=1)
     btns.columnconfigure(1, weight=1)
 
@@ -384,57 +446,46 @@ def brain_outline_ui(
         osz_odd = _odd(max(1, int(osz)))
         smk_odd = _odd(max(1, int(smk)))
 
-        # cache auto mask when thr/close/open unchanged (biggest cost)
-        cache_key = (thr, csz_odd, osz_odd)
-        if state.get("_cache_auto_key") == cache_key and state.get("_cache_auto") is not None:
-            auto_m = state["_cache_auto"]
+        # --- Base auto mask, cached by (thr, close, open) ---
+        base_key = (thr, csz_odd, osz_odd)
+        if state.get("_cache_auto_base_key") == base_key and state.get("_cache_auto_base") is not None:
+            base_m = state["_cache_auto_base"].copy()
         else:
-            auto_m = (g < int(thr)).astype(np.uint8) * 255
-            k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (csz_odd, csz_odd))
-            k_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (osz_odd, osz_odd))
-            auto_m = cv2.morphologyEx(auto_m, cv2.MORPH_CLOSE, k_close)
-            auto_m = cv2.morphologyEx(auto_m, cv2.MORPH_OPEN, k_open)
-            auto_m = _largest_component(auto_m)
-            if int((auto_m > 0).sum()) >= int(min_area):
-                auto_m = _fill_holes(auto_m)
-            state["_cache_auto"] = auto_m
-            state["_cache_auto_key"] = cache_key
+            if state.get("_cache_auto_key") == ("threshold_override",) and state.get("_cache_auto") is not None:
+                base_m = state["_cache_auto"].copy()
+            else:
+                auto_m0 = (g < int(thr)).astype(np.uint8) * 255
+                k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (csz_odd, csz_odd))
+                k_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (osz_odd, osz_odd))
+                auto_m0 = cv2.morphologyEx(auto_m0, cv2.MORPH_CLOSE, k_close)
+                auto_m0 = cv2.morphologyEx(auto_m0, cv2.MORPH_OPEN, k_open)
+                auto_m0 = _largest_component(auto_m0)
+                base_m = auto_m0
+            state["_cache_auto_base"] = base_m.copy()
+            state["_cache_auto_base_key"] = base_key
+
+        # --- Smooth version cached by (base_key, smk_odd) ---
+        smooth_key = (base_key, smk_odd)
+        if state.get("_cache_auto_key") == smooth_key and state.get("_cache_auto") is not None:
+            auto_m = state["_cache_auto"].copy()
+        else:
+            auto_m = base_m.copy()
+            if smk_odd > 1:
+                k_s = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (smk_odd, smk_odd))
+                auto_m = cv2.morphologyEx(auto_m, cv2.MORPH_OPEN, k_s)
+                auto_m = cv2.morphologyEx(auto_m, cv2.MORPH_CLOSE, k_s)
+            state["_cache_auto"] = auto_m.copy()
+            state["_cache_auto_key"] = smooth_key
 
         m = _apply_edit_layers(auto_m, edit_add_u8, edit_del_u8)
-        min_a = int(var_min_void_area.get())
-        remove_voids_on = bool(var_remove_voids.get())
-        # cache m after voids so moving only zoom/display does not recompute remove_voids
-        m_voids_key = (
-            thr, csz_odd, osz_odd, min_a, remove_voids_on,
-            int(np.sum(edit_add_u8 > 0)), int(np.sum(edit_del_u8 > 0)),
-        )
-        if state.get("_cache_m_voids_key") == m_voids_key and state.get("_cache_m_after_voids") is not None:
-            m = state["_cache_m_after_voids"]
-        else:
-            if remove_voids_on:
-                # auto-voids proposal
-                to_remove = remove_voids_inside_mask(m, g, min_void_area=min_a)
-                # do not remove regions that the user explicitly added back
-                if edit_add_u8 is not None:
-                    to_remove = cv2.bitwise_and(
-                        to_remove,
-                        cv2.bitwise_not((edit_add_u8 > 0).astype(np.uint8) * 255),
-                    )
-                state["_cache_to_remove"] = to_remove.copy()
-                m = cv2.bitwise_and(m, cv2.bitwise_not(to_remove))
-                # ensure user-added pixels stay in the mask even if auto-voids disagree
-                if edit_add_u8 is not None:
-                    m = cv2.bitwise_or(m, (edit_add_u8 > 0).astype(np.uint8) * 255)
-            else:
-                state["_cache_to_remove"] = None
-            state["_cache_m_after_voids"] = m.copy()
-            state["_cache_m_voids_key"] = m_voids_key
-
+        # On the outline step we want a solid brain region with no internal voids,
+        # but we still allow arbitrary contour shape. Just fill all holes here.
+        m = _fill_holes(m, binary=True)
         state["m_u8"] = m
 
         # Protrusions: cache by same fingerprint so zoom-only changes skip morphology
         eop_odd = eop if eop >= 3 and eop % 2 == 1 else (eop + 1) if eop >= 3 else 3
-        protrusions_key = (m_voids_key, eop_odd)
+        protrusions_key = ((thr, csz_odd, osz_odd), eop_odd, int(np.sum(edit_add_u8 > 0)), int(np.sum(edit_del_u8 > 0)))
         if state.get("_cache_protrusions_key") == protrusions_key and state.get("protrusions_u8") is not None:
             protrusions = state["protrusions_u8"]
         else:
@@ -444,23 +495,17 @@ def brain_outline_ui(
             state["protrusions_u8"] = protrusions.copy()
             state["_cache_protrusions_key"] = protrusions_key
 
-        # base RGB for display
+        # base RGB for display: emphasize contour, not filled mask
+        mask_u8 = (m > 0).astype(np.uint8) * 255
         if var_show_mask_only.get():
-            mask_u8 = (m > 0).astype(np.uint8) * 255
             vis_bgr = cv2.cvtColor(mask_u8, cv2.COLOR_GRAY2BGR)
         else:
             vis_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
             if bool(state["show_mask"]):
-                alpha = 0.28
-                green = np.zeros_like(vis_bgr, dtype=np.uint8)
-                green[:, :, 1] = 255
-                m_bool = (m > 0)
-                vis_bgr[m_bool] = cv2.addWeighted(vis_bgr[m_bool], 1.0 - alpha, green[m_bool], alpha, 0.0)
-            # voids overlay: removed regions in white
-            to_remove = state.get("_cache_to_remove")
-            if to_remove is not None and int((to_remove > 0).sum()) > 0:
-                v_mask = (to_remove > 0)
-                vis_bgr[v_mask] = cv2.addWeighted(vis_bgr[v_mask], 0.4, np.ones_like(vis_bgr[v_mask], dtype=np.uint8) * 255, 0.6, 0.0)
+                # draw only the outer contour in green
+                cnts, _ = cv2.findContours(mask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+                if cnts:
+                    cv2.polylines(vis_bgr, cnts, True, (0, 255, 0), 4)
             # protrusions overlay (bright red)
             protrusions = state.get("protrusions_u8")
             if protrusions is not None and int((protrusions > 0).sum()) > 0:
@@ -479,10 +524,11 @@ def brain_outline_ui(
         state["disp_h_zoomed"] = disp_h_zoomed
         vis_bgr = cv2.resize(vis_bgr, (disp_w_zoomed, disp_h_zoomed), interpolation=cv2.INTER_AREA)
 
+        # show brush radius around cursor for brush modes
         # convert to Tk image (RGB)
         vis_rgb = cv2.cvtColor(vis_bgr, cv2.COLOR_BGR2RGB)
         pil = Image.fromarray(vis_rgb)
-        tk_img = ImageTk.PhotoImage(pil)
+        tk_img = ImageTk.PhotoImage(pil, master=canvas)
         tk_img_ref["img"] = tk_img
 
         canvas.configure(scrollregion=(0, 0, disp_w_zoomed, disp_h_zoomed))
@@ -493,6 +539,20 @@ def brain_outline_ui(
         canvas.coords(canvas_img_id, 0, 0)
 
     _tick_id: list = []  # mutable to store id for cancel on destroy
+
+    def _canvas_to_ui_xy(ev: tk.Event) -> tuple[int, int] | None:
+        cx = canvas.canvasx(ev.x)
+        cy = canvas.canvasy(ev.y)
+        eff = max(state.get("effective_scale", disp_scale), 1e-6)
+        dw = state.get("disp_w_zoomed") or int(round(w * eff))
+        dh = state.get("disp_h_zoomed") or int(round(h * eff))
+        if cx < 0 or cy < 0 or cx >= dw or cy >= dh:
+            return None
+        ix = int(round(cx / eff))
+        iy = int(round(cy / eff))
+        ix = int(np.clip(ix, 0, w - 1))
+        iy = int(np.clip(iy, 0, h - 1))
+        return ix, iy
 
     def _tick() -> None:
         if state["dirty"]:
@@ -523,11 +583,39 @@ def brain_outline_ui(
         if xy is None:
             return
         ix, iy = xy
+        state["brush_cx"] = ix
+        state["brush_cy"] = iy
         m_current = state["m_u8"]
         if m_current is None or m_current.size == 0:
             return
         mode = state["mode"]
-        if mode == "erase_protrusion":
+        if mode == "erase_protrusion_brush":
+            # local removal of protrusions within brush radius
+            protrusions = state.get("protrusions_u8")
+            if protrusions is None or protrusions.shape != m_current.shape:
+                # recompute protrusions on current mask
+                eop = int(var_edit_open.get())
+                eop_odd = eop if eop >= 3 and eop % 2 == 1 else max(3, eop + 1)
+                k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (eop_odd, eop_odd))
+                base = cv2.morphologyEx(m_current, cv2.MORPH_OPEN, k)
+                protrusions = cv2.bitwise_and(m_current, cv2.bitwise_not(base))
+            brush_r = int(50 / max(state.get("effective_scale", 1.0), 1e-6))
+            brush = np.zeros_like(m_current, dtype=np.uint8)
+            cv2.circle(brush, (ix, iy), max(1, brush_r), 1, thickness=-1)
+            local = (protrusions > 0) & (brush > 0)
+            if local.any():
+                push_undo()
+                edit_del_u8[local] = 255
+                # recompute protrusions only, based on updated mask
+                m_after = _apply_edit_layers(m_current, edit_add_u8, edit_del_u8)
+                eop = int(var_edit_open.get())
+                eop_odd = eop if eop >= 3 and eop % 2 == 1 else max(3, eop + 1)
+                k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (eop_odd, eop_odd))
+                base = cv2.morphologyEx(m_after, cv2.MORPH_OPEN, k)
+                protrusions_new = cv2.bitwise_and(m_after, cv2.bitwise_not(base))
+                state["protrusions_u8"] = protrusions_new.copy()
+                mark_dirty()
+        elif mode == "erase_protrusion":
             protrusions = state.get("protrusions_u8")
             if protrusions is None or protrusions.shape != m_current.shape:
                 eop = int(var_edit_open.get())
@@ -539,6 +627,14 @@ def brain_outline_ui(
             if cc.sum() > 0:
                 push_undo()
                 edit_del_u8[:] = cv2.bitwise_or(edit_del_u8, cc)
+                # пересчитываем только protrusions после изменения маски
+                m_after = _apply_edit_layers(m_current, edit_add_u8, edit_del_u8)
+                eop = int(var_edit_open.get())
+                eop_odd = eop if eop >= 3 and eop % 2 == 1 else max(3, eop + 1)
+                k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (eop_odd, eop_odd))
+                base = cv2.morphologyEx(m_after, cv2.MORPH_OPEN, k)
+                protrusions_new = cv2.bitwise_and(m_after, cv2.bitwise_not(base))
+                state["protrusions_u8"] = protrusions_new.copy()
                 mark_dirty()
         elif mode == "erase_white":
             cc = white_component_at(m_current, g, ix, iy)
@@ -573,6 +669,18 @@ def brain_outline_ui(
                 mark_dirty()
 
     canvas.bind("<Button-1>", on_click)
+
+    def on_motion(ev: tk.Event) -> None:
+        xy = _canvas_to_ui_xy(ev)
+        if xy is None:
+            return
+        ix, iy = xy
+        state["brush_cx"] = ix
+        state["brush_cy"] = iy
+        if state.get("mode") == "erase_protrusion_brush":
+            mark_dirty()
+
+    canvas.bind("<Motion>", on_motion)
 
     def on_wheel(ev) -> None:
         delta = 0

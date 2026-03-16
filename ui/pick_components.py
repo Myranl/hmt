@@ -150,7 +150,7 @@ def select_components_on_background(
 
     lbl_hint = ttk.Label(
         ctrl,
-        text="PICK: click regions to toggle selection.  C: CUT  A: ADD  X: clear strokes  U: undo  R: reset sel  Enter: done  Esc: cancel",
+        text="PICK: click regions to toggle selection.  C: CUT  A: ADD  U: undo  R: reset sel  Enter: done  Esc: cancel",
         justify="left",
     )
     lbl_hint.grid(row=1, column=0, sticky="w", pady=(6, 8))
@@ -339,9 +339,6 @@ def select_components_on_background(
             return
         if k == "a":
             do_add()
-            return
-        if k == "x":
-            do_clear_strokes()
             return
         if k == "u":
             do_undo()

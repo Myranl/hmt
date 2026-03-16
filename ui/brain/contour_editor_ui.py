@@ -336,7 +336,7 @@ def edit_contour_ui(
             perim = float(cv2.arcLength(pts.astype(np.float32), True))
         status_var.set(f"Area: {area} px  Perim: {perim:.1f}")
         pil = Image.fromarray(vis_rgb)
-        tk_img = ImageTk.PhotoImage(pil)
+        tk_img = ImageTk.PhotoImage(pil, master=canvas)
         tk_img_ref["img"] = tk_img
         if not canvas_img_id:
             canvas_img_id.append(canvas.create_image(0, 0, anchor="nw", image=tk_img))

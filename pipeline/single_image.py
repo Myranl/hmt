@@ -13,8 +13,9 @@ from ui.roi.run_ui_and_get_params import run_ui_and_get_params
 from preproc.quantize import sketch_three_bins, small_components_to_gray, apply_midline_cut_to_sketch
 
 from viz.overlay import _overlay_masks_on_original
-from ui.brain.threshold_ui import brain_mask_threshold_ui
+from ui.brain.threshold_ui import brain_mask_auto
 from ui.brain.brain_outline_UI import brain_outline_ui, overlay_mask_outline_rgb
+from ui.brain.fill_voids_ui import fill_voids_ui
 from ui.brain.hemisphere import midline_ui
 from ui.brain.contour_editor_ui import edit_contour_ui
 
@@ -45,12 +46,8 @@ def process_one_image(
     orig_h, orig_w = img.shape[:2]
     sx, sy = ds_scale((orig_h, orig_w), (H_ds, W_ds))
 
-    # --- Step 0: fast brain mask (done first, so we can restrict everything else) ---
-    gray_fast = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY).astype(np.float32) / 255.0
-    bm_res = brain_mask_threshold_ui(gray_fast, img2, pad=50)
-    if bm_res is None:
-        return {"image_path": str(image_path), "status": "skipped"}
-
+    # --- Step 0: fast brain mask (auto Otsu + morphology, no UI) ---
+    bm_res = brain_mask_auto(img2, pad=50)
     brain_mask_ds = bm_res.mask.astype(bool)  # bool mask on img2 (downsample)
     brain_mask_params = bm_res.params  # dict
 
@@ -64,7 +61,13 @@ def process_one_image(
 
     # Step 1: refine brain mask with outline UI (cropped to contour from previous step, minimal reduction)
     brain_mask_outline, brain_outline_params = brain_outline_ui(img2_vis, init_mask=brain_mask_ds)
-    brain_mask_final = (brain_mask_outline.astype(bool) & brain_mask_ds)
+    brain_mask_step1 = (brain_mask_outline.astype(bool) & brain_mask_ds)
+
+    # Step 1b: fill internal voids inside the fixed contour.
+    # `fill_voids_ui` already constrains operations to the interior of the contour,
+    # so here we only intersect with the original downsampled brain mask.
+    brain_mask_filled_u8, fill_params = fill_voids_ui(img2_vis, brain_mask_step1.astype(np.uint8) * 255)
+    brain_mask_final = (brain_mask_filled_u8.astype(bool) & brain_mask_ds)
 
     if brain_outline_params.get("non_complete_contour", False):
         # Call new contour editing UI

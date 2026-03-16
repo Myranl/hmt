@@ -32,6 +32,56 @@ class BrainMaskUIResult:
     params: dict[str, Any]
 
 
+def brain_mask_auto(
+    img_rgb: np.ndarray,
+    *,
+    pad: int = 50,
+    seed_r: int = 40,
+    close_r: int = 7,
+    open_r: int = 3,
+) -> BrainMaskUIResult:
+    """Compute brain mask with automatic Otsu threshold, no UI.
+
+    Same pipeline as brain_mask_threshold_ui but with fixed params (Otsu, pad_extra=0).
+    Use this by default; open brain_mask_threshold_ui only in exceptional cases.
+    """
+    rgb = _ensure_rgb_u8(img_rgb)
+    gray_u8 = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    h, w = gray_u8.shape[:2]
+
+    try:
+        otsu_thr, _ = cv2.threshold(gray_u8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        thr = int(np.clip(otsu_thr, 0, 255))
+    except Exception:
+        thr = 170
+
+    pad_eff = int(max(0, pad))
+    mask_u8 = compute_mask(
+        gray_u8,
+        thr=thr,
+        pad_eff_ui=pad_eff,
+        close_r_ui=int(close_r),
+        open_r_ui=int(open_r),
+        seed_r_ui=int(seed_r),
+    )
+    mask_bool = (mask_u8 > 0).astype(bool)
+
+    params: dict[str, Any] = {
+        "accepted": True,
+        "thr_base": thr,
+        "thr": thr,
+        "pad": int(pad),
+        "pad_extra": 0,
+        "pad_effective": int(pad),
+        "seed_r": int(seed_r),
+        "close_r": int(close_r),
+        "open_r": int(open_r),
+        "area_px": int(mask_u8.sum()),
+        "perim_px": float(_perimeter_px(mask_u8)),
+    }
+    return BrainMaskUIResult(mask=mask_bool, params=params)
+
+
 def render(ctx: BrainMaskUIContext, thr_eff: int, thr_base: int, pad_extra: int) -> tuple[np.ndarray, np.ndarray]:
     pad_eff_ui = int(max(0, ctx.pad_ui + ctx._sc(pad_extra)))
     mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff_ui=pad_eff_ui, close_r_ui=ctx.close_r_ui, open_r_ui=ctx.open_r_ui, seed_r_ui=ctx.seed_r_ui,)
@@ -283,11 +333,11 @@ def brain_mask_threshold_ui(
         )
 
         pil = Image.fromarray(disp_rgb)
-        tk_img = ImageTk.PhotoImage(pil)
+        tk_img = ImageTk.PhotoImage(pil, master=canvas)
         tk_img_ref["img"] = tk_img
 
         h, w = disp_rgb.shape[:2]
-        canvas.configure(width=w, height=h)
+        canvas.configure(width=min(w, 900), height=min(h, 700), scrollregion=(0, 0, w, h))
         if not canvas_img_id:
             canvas_img_id.append(canvas.create_image(0, 0, anchor="nw", image=tk_img))
         else:
@@ -325,8 +375,10 @@ def brain_mask_threshold_ui(
     root.protocol("WM_DELETE_WINDOW", do_cancel)
     root.bind("<Destroy>", _on_destroy)
 
-    # Initial draw + loop
-    mark_dirty()
+    # Force layout then draw so the canvas has size and the image is visible at once
+    root.update_idletasks()
+    state["need_redraw"] = False
+    _update_canvas()
     _tick()
     root.mainloop()
 

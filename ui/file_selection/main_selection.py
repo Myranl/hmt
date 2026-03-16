@@ -15,6 +15,15 @@ from core.validation import _is_subpath, _can_write_dir, _dir_is_empty, _write_r
 from ui.file_selection.validation_ui import validate_paths_ui
 from ui.file_selection.settings import load_folder_choices, persist_folder_choices
 from ui.common.tk_after import make_on_destroy
+from ui.common.theme import setup_theme, get_base_font, get_small_muted_font
+from ui.common.widgets import (
+    create_card_frame,
+    create_main_panel,
+    create_primary_button,
+    create_secondary_button,
+    create_toolbar_button,
+    create_status_label,
+)
 
 
 def run_folder_and_selection_ui(
@@ -27,20 +36,32 @@ def run_folder_and_selection_ui(
 
     exts = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 
-    # More modern, light appearance closer to native macOS dialogs
-    ctk.set_appearance_mode("light")
-    ctk.set_default_color_theme("green")
+    # Global theme (colors / appearance) configured once here
+    setup_theme()
 
     root = ctk.CTk()
     root.title(title)
-    root.minsize(720, 420)
-    root.geometry("720x520")
+    
+
+    w = 1280
+    h = 720
+
+    screen_w = root.winfo_screenwidth()
+    screen_h = root.winfo_screenheight()
+
+    x = (screen_w - w) // 2
+    y = (screen_h - h) // 2
+
+    root.geometry(f"{w}x{h}+{x}+{y}")
+
     root.grid_columnconfigure(0, weight=1)
     root.grid_rowconfigure(1, weight=1)
 
-    # Base fonts for consistency
-    base_font = ctk.CTkFont(size=13)
-    small_muted_font = ctk.CTkFont(size=11)
+    root.configure(fg_color="white")
+
+    # Fonts must be created after root exists
+    base_font = get_base_font()
+    small_muted_font = get_small_muted_font()
 
     prev = load_folder_choices()
     prev_in = str(prev.get("input_dir", ""))
@@ -54,26 +75,22 @@ def run_folder_and_selection_ui(
     var_process_subfolders = tk.BooleanVar(master=root, value=prev_subfolders)
 
     # Top: folder selection
-    folder_frame = ctk.CTkFrame(
-        root,
-        fg_color=("white", "gray20"),
-        corner_radius=10,
-    )
-    folder_frame.grid(row=0, column=0, sticky="ew", padx=24, pady=(18, 10))
+    folder_frame = create_card_frame(root)
+    folder_frame.grid(row=0, column=0, sticky="ew", padx=124, pady=(18, 10))
     folder_frame.columnconfigure(1, weight=1)
 
     lbl_input = ctk.CTkLabel(folder_frame, text="Input folder (images)", font=base_font)
     lbl_input.grid(row=0, column=0, sticky="w", pady=(8, 0))
     entry_in = ctk.CTkEntry(folder_frame, textvariable=var_in, width=420, state="disabled")
     entry_in.grid(row=0, column=1, sticky="ew", padx=(10, 8), pady=(8, 0))
-    btn_browse_in = ctk.CTkButton(folder_frame, text="Browse…", width=96)
+    btn_browse_in = create_primary_button(folder_frame, text="Browse…")
     btn_browse_in.grid(row=0, column=2, sticky="e", pady=(8, 0))
 
     lbl_output = ctk.CTkLabel(folder_frame, text="Output folder (results)", font=base_font)
     lbl_output.grid(row=1, column=0, sticky="w", pady=(12, 0))
     entry_out = ctk.CTkEntry(folder_frame, textvariable=var_out, width=420, state="disabled")
     entry_out.grid(row=1, column=1, sticky="ew", padx=(10, 8), pady=(12, 0))
-    btn_browse_out = ctk.CTkButton(folder_frame, text="Browse…", width=96)
+    btn_browse_out = create_primary_button(folder_frame, text="Browse…")
     btn_browse_out.grid(row=1, column=2, sticky="e", pady=(12, 0))
 
     chk_create_inside = ctk.CTkCheckBox(
@@ -92,58 +109,41 @@ def run_folder_and_selection_ui(
     )
     chk_subfolders.grid(row=3, column=0, columnspan=3, sticky="w", pady=(10, 0))
 
-    ctk.CTkLabel(
+    create_status_label(
         folder_frame,
         text="The output folder will contain (or update) results.csv and last_selection.json.",
-        text_color="gray40",
-        font=small_muted_font,
         wraplength=540,
-        anchor="w",
-        justify="left",
     ).grid(row=4, column=0, columnspan=3, sticky="w", pady=(12, 0))
 
-    ctk.CTkLabel(
+    create_status_label(
         folder_frame,
         text="Supported formats: .tif/.tiff, .png, .jpg/.jpeg, .bmp",
-        text_color="gray40",
-        font=small_muted_font,
         wraplength=540,
-        anchor="w",
-        justify="left",
     ).grid(row=5, column=0, columnspan=3, sticky="w", pady=(4, 0))
 
     bar = ctk.CTkFrame(folder_frame, fg_color="transparent")
     bar.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(18, 10))
     bar.columnconfigure(0, weight=1)
-    btn_cancel = ctk.CTkButton(bar, text="Cancel", width=96)
-    btn_ok = ctk.CTkButton(bar, text="OK", width=96, state="disabled")
+    btn_cancel = create_secondary_button(bar, text="Cancel")
+    btn_ok = create_primary_button(bar, text="OK", state="disabled")
     btn_cancel.grid(row=0, column=0, sticky="w")
     btn_ok.grid(row=0, column=1, sticky="e")
 
     # Main area: status + scrollable list + controls
-    main_frame = ctk.CTkFrame(
-        root,
-        fg_color=("white", "gray18"),
-        corner_radius=10,
-    )
-    main_frame.grid(row=1, column=0, sticky="nsew", padx=24, pady=(0, 18))
+    main_frame = create_main_panel(root)
+    main_frame.grid(row=1, column=0, sticky="nsew", padx=124, pady=(0, 18))
     main_frame.columnconfigure(0, weight=1)
     main_frame.rowconfigure(1, weight=1)
 
     status_var = tk.StringVar(value="Select folders above, then press OK.")
-    status_lbl = ctk.CTkLabel(
-        main_frame,
-        textvariable=status_var,
-        text_color="gray40",
-        font=small_muted_font,
-        anchor="w",
-        justify="left",
-    )
+    status_lbl = create_status_label(main_frame, textvariable=status_var)
     status_lbl.grid(row=0, column=0, sticky="w", pady=(10, 0))
 
-    scroll_list = ctk.CTkScrollableFrame(main_frame, width=600, height=230, fg_color=("white", "gray22"))
+    COLS_PER_ROW = 4
+    scroll_list = ctk.CTkScrollableFrame(main_frame, width=600, height=280, fg_color=("white", "gray22"))
     scroll_list.grid(row=1, column=0, sticky="nsew", pady=(12, 0))
-    scroll_list.columnconfigure(0, weight=1)
+    for c in range(COLS_PER_ROW):
+        scroll_list.columnconfigure(c, weight=1)
 
     controls = ctk.CTkFrame(main_frame, fg_color="transparent")
     controls.grid(row=2, column=0, sticky="ew", pady=(12, 0))
@@ -157,9 +157,9 @@ def run_folder_and_selection_ui(
         font=base_font,
     )
     chk_show_processed.grid(row=0, column=0, sticky="w")
-    btn_all = ctk.CTkButton(controls, text="Select all", width=96)
-    btn_none = ctk.CTkButton(controls, text="Select none", width=96)
-    btn_invert = ctk.CTkButton(controls, text="Invert", width=80)
+    btn_all = create_toolbar_button(controls, text="Select all")
+    btn_none = create_toolbar_button(controls, text="Select none")
+    btn_invert = create_toolbar_button(controls, text="Invert", width=80)
     btn_all.grid(row=0, column=1, padx=(16, 0))
     btn_none.grid(row=0, column=2, padx=(8, 0))
     btn_invert.grid(row=0, column=3, padx=(8, 0))
@@ -169,8 +169,8 @@ def run_folder_and_selection_ui(
     run_bar = ctk.CTkFrame(main_frame, fg_color="transparent")
     run_bar.grid(row=3, column=0, sticky="ew", pady=(12, 10))
     run_bar.columnconfigure(0, weight=1)
-    btn_cancel2 = ctk.CTkButton(run_bar, text="Cancel", width=96)
-    btn_run = ctk.CTkButton(run_bar, text="Run selected", width=116, state="disabled")
+    btn_cancel2 = create_secondary_button(run_bar, text="Cancel")
+    btn_run = create_primary_button(run_bar, text="Run selected", width=116, state="disabled")
     btn_cancel2.grid(row=0, column=0, sticky="w")
     btn_run.grid(row=0, column=1, sticky="e")
 
@@ -211,23 +211,26 @@ def run_folder_and_selection_ui(
             is_proc = bool(m.get("processed", False))
             if (not show_proc) and is_proc:
                 continue
-            row = ctk.CTkFrame(scroll_list, fg_color=("gray96", "gray28"), corner_radius=8)
-            row.grid(row=shown, column=0, sticky="ew", pady=3, padx=4)
-            row.columnconfigure(2, weight=1)
-            cb = ctk.CTkCheckBox(row, variable=vars_sel[i], text="", width=24)
-            cb.grid(row=0, column=0, sticky="w", padx=(8, 6), pady=6)
+            row_idx = shown // COLS_PER_ROW
+            col_idx = shown % COLS_PER_ROW
+            card = ctk.CTkFrame(scroll_list, fg_color=("gray96", "gray28"), corner_radius=8)
+            card.grid(row=row_idx, column=col_idx, sticky="nsew", pady=4, padx=4)
+            card.columnconfigure(0, weight=1)
+            cb = ctk.CTkCheckBox(card, variable=vars_sel[i], text="", width=24)
+            cb.grid(row=0, column=0, sticky="w", padx=(8, 6), pady=(6, 4))
             row_bg = "#3d3d3d" if ctk.get_appearance_mode() == "Dark" else "#c4c4c4"
-            lbl_img = tk.Label(row, image=thumbs[i], bg=row_bg, bd=0)
-            lbl_img.grid(row=0, column=1, sticky="w", padx=(0, 10), pady=6)
+            lbl_img = tk.Label(card, image=thumbs[i], bg=row_bg, bd=0)
+            lbl_img.grid(row=1, column=0, sticky="n", pady=(0, 4))
             name = m.get("name") or Path(m["path"]).name
             suffix = " (processed)" if is_proc else ""
-            ctk.CTkLabel(row, text=f"{name}{suffix}", anchor="w", font=base_font).grid(
-                row=0,
-                column=2,
-                sticky="ew",
-                padx=(0, 8),
-                pady=6,
-            )
+            ctk.CTkLabel(
+                card,
+                text=f"{name}{suffix}",
+                anchor="center",
+                font=base_font,
+                wraplength=130,
+                justify="center",
+            ).grid(row=2, column=0, sticky="ew", padx=6, pady=(0, 6))
             if vars_sel[i].get():
                 checked += 1
             shown += 1

@@ -126,12 +126,16 @@ def midline_ui(
                 cv2.polylines(d, [poly], isClosed=False, color=line_color_bgr, thickness=line_thickness, lineType=cv2.LINE_AA)
             for p in pts:
                 pp = tuple(np.round(p).astype(int))
+                # white center with black outline
+                cv2.circle(d, pp, HANDLE_R + 2, (0, 0, 0), -1, cv2.LINE_AA)
                 cv2.circle(d, pp, HANDLE_R, (255, 255, 255), -1, cv2.LINE_AA)
         else:
             aa = tuple(np.round(state["a"]).astype(int))
             bb = tuple(np.round(state["b"]).astype(int))
             cv2.line(d, aa, bb, line_color_bgr, line_thickness, cv2.LINE_AA)
+            cv2.circle(d, aa, HANDLE_R + 2, (0, 0, 0), -1, cv2.LINE_AA)
             cv2.circle(d, aa, HANDLE_R, (255, 255, 255), -1, cv2.LINE_AA)
+            cv2.circle(d, bb, HANDLE_R + 2, (0, 0, 0), -1, cv2.LINE_AA)
             cv2.circle(d, bb, HANDLE_R, (255, 255, 255), -1, cv2.LINE_AA)
         return d
 

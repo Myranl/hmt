@@ -1,5 +1,18 @@
 import numpy as np
 import cv2
+import tkinter as tk
+from tkinter import ttk, messagebox
+from PIL import Image, ImageTk
+
+import customtkinter as ctk  # type: ignore[import-untyped]
+
+from ui.common.theme import setup_theme, get_base_font, get_small_muted_font
+from ui.common.widgets import (
+    create_card_frame,
+    create_primary_button,
+    create_secondary_button,
+    create_status_label,
+)
 from ui.brain.mask_utils import _gray_to_u8, _odd, _put_text_box
 from ui.brain.threshold_ui import brain_mask_threshold_ui
 from ui.brain.mask_morphology import (
@@ -11,10 +24,6 @@ from ui.brain.mask_morphology import (
     remove_voids_inside_mask,
     white_component_at,
 )
-import tkinter as tk
-from tkinter import ttk
-
-from PIL import Image, ImageTk
 
 
 def _enforce_no_internal_voids(mask_u8: np.ndarray) -> np.ndarray:
@@ -145,7 +154,7 @@ def brain_outline_ui(
     # state
     state = {
         "m_u8": np.zeros((h, w), dtype=np.uint8),
-        "mode": "erase_protrusion",
+        "mode": "erase_protrusion_brush",
         "show_mask": True,
         "show_protrusions": True,
         "accepted": False,
@@ -165,44 +174,41 @@ def brain_outline_ui(
     }
 
     # ------------------------
-    # Tk window + layout
+    # Window + layout (CTk, same style as folder selection / contour editor)
     # ------------------------
-    root = tk.Tk()
+    setup_theme()
+    root = ctk.CTk()
     root.title(window)
+    root.minsize(1000, 620)
+    root.geometry("1200x720")
+    root.configure(fg_color="white")
+    root.grid_columnconfigure(0, weight=1)
+    root.grid_rowconfigure(0, weight=1)
 
-    # Make the UI reasonably sized on small displays
-    try:
-        sw = int(root.winfo_screenwidth())
-        sh = int(root.winfo_screenheight())
-    except Exception:
-        sw, sh = 1400, 900
-
-    # Main frame
-    frm = ttk.Frame(root, padding=10)
-    frm.grid(row=0, column=0, sticky="nsew")
-    root.columnconfigure(0, weight=1)
-    root.rowconfigure(0, weight=1)
-    frm.columnconfigure(0, weight=1)
-    frm.rowconfigure(0, weight=1)
-
-    # Canvas (image) with scrollbars for zoom
-    frm_canvas = ttk.Frame(frm)
-    frm_canvas.grid(row=0, column=0, sticky="nsew")
-    scroll_y = ttk.Scrollbar(frm_canvas)
-    scroll_x = ttk.Scrollbar(frm_canvas, orient=tk.HORIZONTAL)
-    canvas = tk.Canvas(frm_canvas, highlightthickness=0, bg="#111")
+    # Left: image card
+    img_card = create_card_frame(root)
+    img_card.grid(row=0, column=0, sticky="nsew", padx=(18, 10), pady=18)
+    img_card.columnconfigure(0, weight=1)
+    img_card.rowconfigure(0, weight=1)
+    canvas_holder = tk.Frame(img_card)
+    canvas_holder.grid(row=0, column=0, sticky="nsew")
+    canvas_holder.columnconfigure(0, weight=1)
+    canvas_holder.rowconfigure(0, weight=1)
+    scroll_y = ttk.Scrollbar(canvas_holder)
+    scroll_x = ttk.Scrollbar(canvas_holder, orient=tk.HORIZONTAL)
+    canvas = tk.Canvas(canvas_holder, highlightthickness=0, bg="#e8e8e8")
     canvas.grid(row=0, column=0, sticky="nsew")
     scroll_y.grid(row=0, column=1, sticky="ns")
     scroll_x.grid(row=1, column=0, sticky="ew")
     canvas.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
     scroll_y.configure(command=canvas.yview)
     scroll_x.configure(command=canvas.xview)
-    frm_canvas.columnconfigure(0, weight=1)
-    frm_canvas.rowconfigure(0, weight=1)
 
-    # Right controls
-    ctrl = ttk.Frame(frm)
-    ctrl.grid(row=0, column=1, padx=(12, 0), sticky="ns")
+    # Right: controls card
+    ctrl = create_card_frame(root)
+    ctrl.grid(row=0, column=1, sticky="ns", padx=(0, 18), pady=18)
+    ctrl.grid_propagate(False)
+    ctrl.configure(width=320)
 
     # Vars
     var_thr = tk.IntVar(value=int(init_thr))
@@ -213,23 +219,21 @@ def brain_outline_ui(
 
     var_show_mask = tk.BooleanVar(value=True)
     var_show_mask_only = tk.BooleanVar(value=False)
-    var_zoom = tk.IntVar(value=100)
     var_non_complete_contour = tk.BooleanVar(value=False)
+    # zoom factor is hidden from UI; controlled only by mouse wheel
+    var_zoom = tk.IntVar(value=100)
 
     def mark_dirty() -> None:
         state["dirty"] = True
 
-    # Title + short hint
-    lbl_title = ttk.Label(ctrl, text="Brain outline", font=("TkDefaultFont", 13, "bold"))
-    lbl_title.grid(row=0, column=0, sticky="w", pady=(0, 2))
-    lbl_help_title = ttk.Label(ctrl, text=" ? ", cursor="question_arrow")
-    lbl_help_title.grid(row=0, column=1, sticky="w")
-    lbl_hint = ttk.Label(
+    base_font = get_base_font()
+    ctk.CTkLabel(ctrl, text="Brain outline", font=ctk.CTkFont(size=16, weight="bold")).grid(
+        row=0, column=0, columnspan=2, sticky="w", padx=14, pady=(14, 6))
+    create_status_label(
         ctrl,
-        text="E/W/A/B = modes · U/C/M = undo, clear, mask · Enter/Esc = accept, cancel",
-        justify="left",
-    )
-    lbl_hint.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        text="E = erase protrusion (brush) · U/C/M = undo, clear, mask · Esc = skip image",
+        wraplength=280,
+    ).grid(row=1, column=0, columnspan=2, sticky="w", padx=14, pady=(0, 10))
 
     def _add_slider_row(parent: ttk.Frame, row: int, label_text: str, tooltip_text: str, var: tk.IntVar, frm_to: int) -> None:
         ttk.Label(parent, text=label_text).grid(row=row, column=0, sticky="w", padx=(0, 2))
@@ -255,51 +259,31 @@ def brain_outline_ui(
         parent.columnconfigure(2, weight=1)
 
     # --- Threshold & morphology ---
-    lf_morph = ttk.LabelFrame(ctrl, text="Threshold & morphology", padding=6)
-    lf_morph.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+    lf_morph = ttk.LabelFrame(ctrl, text="THRESHOLD & MORPHOLOGY", padding=6)
+    lf_morph.grid(row=2, column=0, columnspan=2, sticky="ew", padx=14, pady=(0, 6))
     lf_morph.columnconfigure(2, weight=1)
-    _add_slider_row(lf_morph, 0, "thr", "Binarization threshold: pixels darker than this are considered tissue.", var_thr, 255)
+    _add_slider_row(lf_morph, 0, "threshold", "Binarization threshold: pixels darker than this are considered tissue.", var_thr, 255)
     _add_slider_row(lf_morph, 1, "smooth", "Contour smoothing (kernel size).", var_smooth, 101)
     _add_slider_row(lf_morph, 2, "close", "Morphological closing: fills small holes in the mask.", var_close, 101)
     _add_slider_row(lf_morph, 3, "open", "Morphological opening: removes small protrusions.", var_open, 101)
 
     # --- Edit ---
-    lf_edit = ttk.LabelFrame(ctrl, text="Edit", padding=6)
-    lf_edit.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+    lf_edit = ttk.LabelFrame(ctrl, text="EDIT", padding=6)
+    lf_edit.grid(row=3, column=0, columnspan=2, sticky="ew", padx=14, pady=(0, 6))
     lf_edit.columnconfigure(2, weight=1)
     _add_slider_row(
         lf_edit,
         0,
-        "edit_open (protrusions)",
-        "Radius for erasing protrusions (E): larger value affects a bigger area per click.",
+        "edit open",
+        "Brush radius for erasing protrusions: larger value affects a bigger area.",
         var_edit_open,
         101,
     )
 
     # --- View ---
-    lf_view = ttk.LabelFrame(ctrl, text="View", padding=6)
-    lf_view.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+    lf_view = ttk.LabelFrame(ctrl, text="VIEW", padding=6)
+    lf_view.grid(row=4, column=0, columnspan=2, sticky="ew", padx=14, pady=(0, 6))
     lf_view.columnconfigure(2, weight=1)
-    ttk.Label(lf_view, text="zoom %").grid(row=0, column=0, sticky="w", padx=(0, 2))
-    q_zoom = ttk.Label(lf_view, text="?", cursor="question_arrow")
-    q_zoom.grid(row=0, column=1, sticky="w")
-    _bind_tooltip(q_zoom, "Display zoom level.")
-    s_zoom = ttk.Scale(lf_view, from_=100, to=200, orient="horizontal")
-    s_zoom.set(float(var_zoom.get()))
-    def _on_zoom_var(*_a):
-        try:
-            s_zoom.set(float(var_zoom.get()))
-        except Exception:
-            pass
-        mark_dirty()
-    var_zoom.trace_add("write", _on_zoom_var)
-    def _on_zoom_scale(val: str):
-        try:
-            var_zoom.set(max(100, int(float(val) + 0.5)))
-        except Exception:
-            pass
-    s_zoom.configure(command=_on_zoom_scale)
-    s_zoom.grid(row=0, column=2, sticky="ew", pady=2)
 
     def _toggle_mask() -> None:
         state["show_mask"] = bool(var_show_mask.get())
@@ -312,12 +296,12 @@ def brain_outline_ui(
         q.grid(row=row, column=2, sticky="w")
         _bind_tooltip(q, tooltip)
 
-    _chk_with_help(lf_view, 1, "Show mask (M)", var_show_mask, _toggle_mask, "Show or hide the outline overlay on the image.")
-    _chk_with_help(lf_view, 2, "Mask only (B&W)", var_show_mask_only, mark_dirty, "Show only the mask (black & white), no background image.")
+    _chk_with_help(lf_view, 0, "Show mask (M)", var_show_mask, _toggle_mask, "Show or hide the outline overlay on the image.")
+    _chk_with_help(lf_view, 1, "Mask only (B&W)", var_show_mask_only, mark_dirty, "Show only the mask (black & white), no background image.")
 
     # --- Contour incomplete ---
-    frm_non_complete = ttk.LabelFrame(ctrl, text="  Contour incomplete?  ", padding=8)
-    frm_non_complete.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+    frm_non_complete = ttk.LabelFrame(ctrl, text="CONTOUR STATUS", padding=8)
+    frm_non_complete.grid(row=5, column=0, columnspan=2, sticky="ew", padx=14, pady=(0, 6))
     row_chk = ttk.Frame(frm_non_complete)
     row_chk.pack(anchor="w")
     chk_non_complete = ttk.Checkbutton(
@@ -337,14 +321,15 @@ def brain_outline_ui(
         foreground="gray",
     ).pack(anchor="w")
 
-    # Mode indicator
-    mode_var = tk.StringVar(value="MODE: ERASE PROTRUSION")
-    lbl_mode = ttk.Label(ctrl, textvariable=mode_var, font=("TkDefaultFont", 11, "bold"))
-    lbl_mode.grid(row=6, column=0, columnspan=2, sticky="w", pady=(8, 6))
-
-    # Buttons
-    btns = ttk.Frame(ctrl)
-    btns.grid(row=7, column=0, columnspan=2, sticky="ew")
+    # Actions (2x2)
+    lf_actions = ttk.LabelFrame(ctrl, text="ACTIONS", padding=6)
+    lf_actions.grid(row=7, column=0, columnspan=2, sticky="ew", padx=14, pady=(0, 8))
+    lf_actions.columnconfigure(0, weight=1)
+    lf_actions.columnconfigure(1, weight=1)
+    btns = ctk.CTkFrame(lf_actions, fg_color="transparent")
+    btns.grid(row=0, column=0, columnspan=2, sticky="ew")
+    btns.columnconfigure(0, weight=1)
+    btns.columnconfigure(1, weight=1)
 
     def do_accept() -> None:
         state["accepted"] = True
@@ -355,7 +340,9 @@ def brain_outline_ui(
                 pass
         root.destroy()
 
-    def do_cancel() -> None:
+    def do_skip() -> None:
+        if not messagebox.askyesno("Skip image?", "Skip this image without saving the brain outline?", parent=root):
+            return
         state["cancelled"] = True
         for aid in _tick_id:
             try:
@@ -372,19 +359,11 @@ def brain_outline_ui(
 
     def set_mode(kind: str) -> None:
         state["mode"] = kind
-        mode_var.set(f"MODE: {kind.upper().replace('_', ' ')}")
 
-    ttk.Button(btns, text="Accept (Enter)", command=do_accept).grid(row=0, column=0, sticky="ew", padx=(0, 6))
-    ttk.Button(btns, text="Cancel (Esc)", command=do_cancel).grid(row=0, column=1, sticky="ew")
-    ttk.Button(btns, text="Undo (U)", command=lambda: (undo_last(), mark_dirty())).grid(row=1, column=0, sticky="ew", pady=(6, 0), padx=(0, 6))
-    ttk.Button(btns, text="Clear edits (C)", command=do_clear).grid(row=1, column=1, sticky="ew", pady=(6, 0))
-    ttk.Button(btns, text="Erase protrusion (E)", command=lambda: set_mode("erase_protrusion")).grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 0))
-
-    ttk.Button(
-        btns,
-        text="Erase protrusions (brush)",
-        command=lambda: set_mode("erase_protrusion_brush"),
-    ).grid(row=3, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+    create_primary_button(btns, text="Accept", command=do_accept).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+    create_secondary_button(btns, text="Skip image", command=do_skip).grid(row=0, column=1, sticky="ew")
+    create_secondary_button(btns, text="Undo (U)", command=lambda: (undo_last(), mark_dirty())).grid(row=1, column=0, sticky="ew", pady=(6, 0), padx=(0, 6))
+    create_secondary_button(btns, text="Clear edits (C)", command=do_clear).grid(row=1, column=1, sticky="ew", pady=(6, 0))
 
     def do_rerun_threshold() -> None:
         gray0 = cv2.cvtColor(img0, cv2.COLOR_RGB2GRAY)
@@ -410,30 +389,34 @@ def brain_outline_ui(
         mark_dirty()
         _render_vis()
 
-    ttk.Button(btns, text="Re-run threshold…", command=do_rerun_threshold).grid(
-        row=3, column=0, columnspan=2, sticky="ew", pady=(6, 0)
-    )
-    btns.columnconfigure(0, weight=1)
-    btns.columnconfigure(1, weight=1)
+    ttk.Button(lf_morph, text="Re-run threshold…", command=do_rerun_threshold).grid(row=4, column=0, columnspan=3, sticky="ew", pady=(8, 0))
 
     # ------------------------
-    # Display scaling (fit to screen)
+    # Display scaling (fit to canvas_holder)
     # ------------------------
-    # Fit the UI image into the available canvas area (rough estimate based on screen)
-    max_canvas_w = max(400, min(int(sw * 0.68), int(w)))
-    max_canvas_h = max(300, min(int(sh * 0.80), int(h)))
+    def _get_canvas_size() -> tuple[int, int]:
+        cw = canvas_holder.winfo_width() or 800
+        ch = canvas_holder.winfo_height() or 600
+        if cw < 200:
+            cw = 800
+        if ch < 200:
+            ch = 600
+        return (cw, ch)
 
-    disp_scale = min(1.0, max_canvas_w / float(w), max_canvas_h / float(h))
-    disp_w = int(round(w * disp_scale))
-    disp_h = int(round(h * disp_scale))
-    canvas.configure(width=max_canvas_w, height=max_canvas_h)
+    disp_scale = 1.0
+    disp_w = w
+    disp_h = h
 
-    # Tk image handle to avoid GC
     tk_img_ref = {"img": None}
     canvas_img_id = None
 
     def _render_vis() -> None:
-        nonlocal canvas_img_id
+        nonlocal canvas_img_id, disp_scale, disp_w, disp_h
+        cw, ch = _get_canvas_size()
+        disp_scale = min(1.0, cw / float(w), ch / float(h))
+        disp_w = int(round(w * disp_scale))
+        disp_h = int(round(h * disp_scale))
+        canvas.configure(width=cw, height=ch)
 
         # Read slider values
         thr = int(var_thr.get())
@@ -514,7 +497,7 @@ def brain_outline_ui(
                 red[:, :, 2] = 255
                 vis_bgr[p_mask] = cv2.addWeighted(vis_bgr[p_mask], 1.0 - 0.55, red[p_mask], 0.55, 0.0)
 
-        # apply zoom and scale for canvas
+        # zoom controlled only by mouse wheel (no visible slider)
         zoom_factor = max(1.0, min(3.0, int(var_zoom.get()) / 100.0))
         effective_scale = disp_scale * zoom_factor
         state["effective_scale"] = effective_scale
@@ -615,27 +598,6 @@ def brain_outline_ui(
                 protrusions_new = cv2.bitwise_and(m_after, cv2.bitwise_not(base))
                 state["protrusions_u8"] = protrusions_new.copy()
                 mark_dirty()
-        elif mode == "erase_protrusion":
-            protrusions = state.get("protrusions_u8")
-            if protrusions is None or protrusions.shape != m_current.shape:
-                eop = int(var_edit_open.get())
-                eop_odd = eop if eop >= 3 and eop % 2 == 1 else max(3, eop + 1)
-                k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (eop_odd, eop_odd))
-                base = cv2.morphologyEx(m_current, cv2.MORPH_OPEN, k)
-                protrusions = cv2.bitwise_and(m_current, cv2.bitwise_not(base))
-            cc = _connected_component_from_seed(protrusions, ix, iy, search_r=12)
-            if cc.sum() > 0:
-                push_undo()
-                edit_del_u8[:] = cv2.bitwise_or(edit_del_u8, cc)
-                # пересчитываем только protrusions после изменения маски
-                m_after = _apply_edit_layers(m_current, edit_add_u8, edit_del_u8)
-                eop = int(var_edit_open.get())
-                eop_odd = eop if eop >= 3 and eop % 2 == 1 else max(3, eop + 1)
-                k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (eop_odd, eop_odd))
-                base = cv2.morphologyEx(m_after, cv2.MORPH_OPEN, k)
-                protrusions_new = cv2.bitwise_and(m_after, cv2.bitwise_not(base))
-                state["protrusions_u8"] = protrusions_new.copy()
-                mark_dirty()
         elif mode == "erase_white":
             cc = white_component_at(m_current, g, ix, iy)
             if cc.sum() > 0:
@@ -684,14 +646,14 @@ def brain_outline_ui(
 
     def on_wheel(ev) -> None:
         delta = 0
-        if ev.num == 5 or (hasattr(ev, "delta") and ev.delta < 0):
+        if getattr(ev, "num", None) == 5 or (hasattr(ev, "delta") and ev.delta < 0):
             delta = -10
-        elif ev.num == 4 or (hasattr(ev, "delta") and ev.delta > 0):
+        elif getattr(ev, "num", None) == 4 or (hasattr(ev, "delta") and ev.delta > 0):
             delta = 10
         if delta == 0:
             return
         z = int(var_zoom.get()) + delta
-        z = max(100, min(200, z))
+        z = max(50, min(300, z))
         var_zoom.set(z)
         mark_dirty()
 
@@ -704,14 +666,11 @@ def brain_outline_ui(
     # ------------------------
     def on_key(ev) -> None:
         ks = (ev.keysym or "").lower()
-        if ks in ("return", "kp_enter"):
-            do_accept()
-            return
         if ks == "escape":
-            do_cancel()
+            do_skip()
             return
         if ks == "e":
-            set_mode("erase_protrusion")
+            set_mode("erase_protrusion_brush")
             return
         if ks == "w":
             set_mode("erase_white")
@@ -744,13 +703,19 @@ def brain_outline_ui(
                 pass
         _tick_id.clear()
 
-    root.protocol("WM_DELETE_WINDOW", do_cancel)
+    root.protocol("WM_DELETE_WINDOW", do_skip)
     root.bind("<Destroy>", _on_destroy)
 
-    # initial mode
-    set_mode("erase_protrusion")
+    def _on_holder_configure(_ev: tk.Event) -> None:
+        mark_dirty()
+
+    canvas_holder.bind("<Configure>", _on_holder_configure)
+
+    # initial mode (always brush for erase protrusion)
+    set_mode("erase_protrusion_brush")
 
     # initial draw
+    root.update_idletasks()
     mark_dirty()
     _tick()
 

@@ -130,8 +130,25 @@ def fill_voids_ui(
     ctrl.configure(width=300)
 
     base_font = get_base_font()
-    ctk.CTkLabel(ctrl, text="Fill voids", font=ctk.CTkFont(size=16, weight="bold")).grid(
-        row=0, column=0, sticky="w", padx=14, pady=(14, 6))
+
+    # Header: title + small mode pill ("Auto only" / "Auto + manual")
+    header = ctk.CTkFrame(ctrl, fg_color="transparent")
+    header.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 6))
+    header.columnconfigure(0, weight=1)
+    ctk.CTkLabel(header, text="Fill voids", font=ctk.CTkFont(size=16, weight="bold")).grid(
+        row=0, column=0, sticky="w")
+    mode_var = tk.StringVar(value="Auto only")
+    mode_pill = ctk.CTkLabel(
+        header,
+        textvariable=mode_var,
+        font=ctk.CTkFont(size=11, weight="bold"),
+        fg_color=("#E1F6E1", "#2a5930"),
+        text_color=("#2B7A2B", "#ffffff"),
+        corner_radius=10,
+        padx=8,
+        pady=2,
+    )
+    mode_pill.grid(row=0, column=1, sticky="e")
     create_status_label(
         ctrl,
         text="Adjust filling of holes inside the mask. Outer contour is fixed and will not change here.",
@@ -141,15 +158,26 @@ def fill_voids_ui(
     var_min_void = tk.IntVar(value=int(init_min_void_area))
     var_auto_remove = tk.BooleanVar(value=True)
     var_show_mask_only = tk.BooleanVar(value=False)
+    var_zoom = tk.IntVar(value=100)
 
-    # --- Automatic void removal (clear rows: label, then −10 / entry / +10, then checkbox) ---
-    lf_auto = ctk.CTkFrame(ctrl, fg_color="transparent")
+    # --- AUTOMATIC VOID REMOVAL ---
+    lf_auto = ttk.LabelFrame(ctrl, text="AUTOMATIC VOID REMOVAL", padding=6)
     lf_auto.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 10))
     lf_auto.columnconfigure(0, weight=1)
-    ctk.CTkLabel(lf_auto, text="Automatic void removal", font=ctk.CTkFont(size=13, weight="bold")).grid(
-        row=0, column=0, sticky="w", pady=(0, 6))
 
-    ctk.CTkLabel(lf_auto, text="min void area (px)", font=base_font).grid(row=1, column=0, sticky="w", pady=(0, 4))
+    def _on_auto_remove() -> None:
+        state["dirty"] = True
+        _update_canvas()
+
+    ctk.CTkCheckBox(
+        lf_auto,
+        text="Remove small voids automatically",
+        variable=var_auto_remove,
+        command=_on_auto_remove,
+        font=base_font,
+    ).grid(row=0, column=0, sticky="w", pady=(0, 6))
+
+    ctk.CTkLabel(lf_auto, text="Min void area (px)", font=base_font).grid(row=1, column=0, sticky="w", pady=(0, 4))
 
     def _step_min_void(delta: int) -> None:
         try:
@@ -161,12 +189,22 @@ def fill_voids_ui(
         _update_canvas()
 
     row_min = ctk.CTkFrame(lf_auto, fg_color="transparent")
-    row_min.grid(row=2, column=0, sticky="ew", pady=(0, 8))
+    row_min.grid(row=2, column=0, sticky="ew", pady=(0, 2))
     row_min.columnconfigure(1, weight=1)
-    ctk.CTkButton(row_min, text="−10", width=50, command=lambda: _step_min_void(-10)).grid(row=0, column=0, padx=(0, 6))
-    entry_min_void = ttk.Entry(row_min, textvariable=var_min_void, width=10)
-    entry_min_void.grid(row=0, column=1, sticky="ew", padx=4)
-    ctk.CTkButton(row_min, text="+10", width=50, command=lambda: _step_min_void(10)).grid(row=0, column=2, padx=(6, 0))
+    ctk.CTkButton(row_min, text="--", width=40, command=lambda: _step_min_void(-500)).grid(
+        row=0, column=0, padx=(0, 4)
+    )
+    ctk.CTkButton(row_min, text="-", width=40, command=lambda: _step_min_void(-100)).grid(
+        row=0, column=1, padx=4
+    )
+    entry_min_void = ttk.Entry(row_min, textvariable=var_min_void, width=8)
+    entry_min_void.grid(row=0, column=2, sticky="ew", padx=4)
+    ctk.CTkButton(row_min, text="+", width=40, command=lambda: _step_min_void(100)).grid(
+        row=0, column=3, padx=4
+    )
+    ctk.CTkButton(row_min, text="++", width=40, command=lambda: _step_min_void(500)).grid(
+        row=0, column=4, padx=(4, 0)
+    )
 
     def _on_entry_commit(*_a) -> None:
         try:
@@ -180,44 +218,29 @@ def fill_voids_ui(
     entry_min_void.bind("<Return>", _on_entry_commit)
     entry_min_void.bind("<FocusOut>", _on_entry_commit)
 
-    def _on_auto_remove() -> None:
-        state["dirty"] = True
-        _update_canvas()
-
-    ctk.CTkCheckBox(
-        lf_auto,
-        text="Remove small voids automatically",
-        variable=var_auto_remove,
-        command=_on_auto_remove,
-        font=base_font,
-    ).grid(row=3, column=0, sticky="w", pady=(4, 0))
-
-    mode_var = tk.StringVar(value="MODE: AUTO ONLY")
-
     def set_mode(name: str) -> None:
         state["mode"] = name
         pretty = {"erase_void": "ERASE VOID", "fill_void": "FILL VOID"}.get(name, "AUTO ONLY")
-        mode_var.set(f"MODE: {pretty}")
+        mode_var.set("Auto only" if pretty == "AUTO ONLY" else "Auto + manual")
 
-    ctk.CTkLabel(ctrl, textvariable=mode_var, font=ctk.CTkFont(size=12, weight="bold")).grid(
-        row=3, column=0, sticky="w", padx=14, pady=(8, 6))
+    # --- MANUAL TOOLS ---
+    lf_manual = ttk.LabelFrame(ctrl, text="MANUAL TOOLS", padding=6)
+    lf_manual.grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 8))
+    lf_manual.columnconfigure(0, weight=1)
+    lf_manual.columnconfigure(1, weight=1)
 
-    btn_brush = ctk.CTkFrame(ctrl, fg_color="transparent")
-    btn_brush.grid(row=4, column=0, sticky="ew", padx=14, pady=(0, 6))
-    btn_brush.columnconfigure(0, weight=1)
-    btn_brush.columnconfigure(1, weight=1)
     ctk.CTkButton(
-        btn_brush,
+        lf_manual,
         text="Erase void",
         command=lambda: (set_mode("erase_void"), state.__setitem__("dirty", True), _update_canvas()),
         width=100,
-    ).grid(row=0, column=0, padx=(0, 6))
+    ).grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 4))
     ctk.CTkButton(
-        btn_brush,
+        lf_manual,
         text="Fill void",
         command=lambda: (set_mode("fill_void"), state.__setitem__("dirty", True), _update_canvas()),
         width=100,
-    ).grid(row=0, column=1)
+    ).grid(row=0, column=1, sticky="ew", pady=(0, 4))
 
     def _do_undo() -> None:
         undo_last()
@@ -231,23 +254,27 @@ def fill_voids_ui(
         state["dirty"] = True
         _update_canvas()
 
-    btn_undo = ctk.CTkFrame(ctrl, fg_color="transparent")
-    btn_undo.grid(row=5, column=0, sticky="ew", padx=14, pady=(0, 6))
+    btn_undo = ctk.CTkFrame(lf_manual, fg_color="transparent")
+    btn_undo.grid(row=1, column=0, columnspan=2, sticky="ew")
     btn_undo.columnconfigure(0, weight=1)
-    create_secondary_button(btn_undo, text="Undo", command=_do_undo).grid(row=0, column=0, sticky="w", padx=(0, 6))
-    create_secondary_button(btn_undo, text="Clear edits", command=_do_clear).grid(row=0, column=1, sticky="e")
+    btn_undo.columnconfigure(1, weight=1)
+    create_secondary_button(btn_undo, text="Undo", command=_do_undo).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+    create_secondary_button(btn_undo, text="Clear edits", command=_do_clear).grid(row=0, column=1, sticky="ew")
 
     def _on_show_mask_only() -> None:
         state["dirty"] = True
         _update_canvas()
 
+    # --- VIEW ---
+    lf_view = ttk.LabelFrame(ctrl, text="VIEW", padding=6)
+    lf_view.grid(row=4, column=0, sticky="ew", padx=14, pady=(0, 8))
     ctk.CTkCheckBox(
-        ctrl,
+        lf_view,
         text="Mask only (B&W)",
         variable=var_show_mask_only,
         command=_on_show_mask_only,
         font=base_font,
-    ).grid(row=6, column=0, sticky="w", padx=14, pady=(8, 0))
+    ).grid(row=0, column=0, sticky="w")
 
     def do_accept() -> None:
         state["accepted"] = True
@@ -257,8 +284,9 @@ def fill_voids_ui(
         state["accepted"] = False
         root.destroy()
 
-    bar = ctk.CTkFrame(ctrl, fg_color="transparent")
-    bar.grid(row=7, column=0, sticky="ew", padx=14, pady=(12, 14))
+    # --- ACTIONS ---
+    bar = ttk.LabelFrame(ctrl, text="ACTIONS", padding=6)
+    bar.grid(row=5, column=0, sticky="ew", padx=14, pady=(0, 14))
     bar.columnconfigure(0, weight=1)
     create_secondary_button(bar, text="Skip", command=do_skip).grid(row=0, column=0, sticky="w")
     create_primary_button(bar, text="Accept", command=do_accept).grid(row=0, column=1, sticky="e")
@@ -278,7 +306,7 @@ def fill_voids_ui(
     disp_scale = 1.0
     disp_w = w
     disp_h = h
-
+    FILL_VOID_RADIUS_PX = 10
     def _recompute_mask() -> None:
         m = mask_base.copy()
 
@@ -301,9 +329,11 @@ def fill_voids_ui(
         nonlocal disp_scale, disp_w, disp_h
         cw, ch = _get_canvas_size()
         disp_scale = min(1.0, cw / float(w), ch / float(h))
-        disp_w = int(round(w * disp_scale))
-        disp_h = int(round(h * disp_scale))
-        canvas.configure(width=disp_w, height=disp_h)
+        zoom_factor = max(0.5, min(3.0, int(var_zoom.get()) / 100.0))
+        effective_scale = disp_scale * zoom_factor
+        disp_w_zoomed = int(round(w * effective_scale))
+        disp_h_zoomed = int(round(h * effective_scale))
+        canvas.configure(width=cw, height=ch)
 
         _recompute_mask()
         m = state["m_u8"]
@@ -316,8 +346,13 @@ def fill_voids_ui(
             green[:, :, 1] = 255
             m_bool = (m > 0)
             vis_bgr[m_bool] = cv2.addWeighted(vis_bgr[m_bool], 1.0 - alpha, green[m_bool], alpha, 0.0)
-        if disp_scale < 1.0:
-            vis_bgr = cv2.resize(vis_bgr, (disp_w, disp_h), interpolation=cv2.INTER_AREA)
+        vis_bgr = cv2.resize(vis_bgr, (disp_w_zoomed, disp_h_zoomed), interpolation=cv2.INTER_AREA)
+        # Mode label in corner
+        mode = state["mode"]
+        if mode == "fill_void":
+            cv2.putText(vis_bgr, "FILL VOID", (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        elif mode == "erase_void":
+            cv2.putText(vis_bgr, "ERASE VOID", (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         vis_rgb = cv2.cvtColor(vis_bgr, cv2.COLOR_BGR2RGB)
         pil = Image.fromarray(vis_rgb)
         tk_img = ImageTk.PhotoImage(pil, master=canvas)
@@ -326,17 +361,23 @@ def fill_voids_ui(
             canvas_img_id.append(canvas.create_image(0, 0, anchor="nw", image=tk_img))
         else:
             canvas.itemconfigure(canvas_img_id[0], image=tk_img)
-        canvas.configure(scrollregion=(0, 0, disp_w, disp_h))
+        canvas.configure(scrollregion=(0, 0, disp_w_zoomed, disp_h_zoomed))
+        state["effective_scale"] = effective_scale
+        state["disp_w_zoomed"] = disp_w_zoomed
+        state["disp_h_zoomed"] = disp_h_zoomed
 
     # --- Mouse tools for manual void edits (click = whole component) ---
 
     def _canvas_to_img(ev: tk.Event) -> tuple[int, int] | None:
         cx = canvas.canvasx(ev.x)
         cy = canvas.canvasy(ev.y)
-        if cx < 0 or cy < 0 or cx >= disp_w or cy >= disp_h:
+        dw = state.get("disp_w_zoomed") or disp_w
+        dh = state.get("disp_h_zoomed") or disp_h
+        eff = state.get("effective_scale") or disp_scale
+        if cx < 0 or cy < 0 or cx >= dw or cy >= dh:
             return None
-        ix = int(round(cx / disp_scale))
-        iy = int(round(cy / disp_scale))
+        ix = int(round(cx / eff))
+        iy = int(round(cy / eff))
         return max(0, min(ix, w - 1)), max(0, min(iy, h - 1))
 
     def _apply_brush(ev: tk.Event) -> None:
@@ -346,47 +387,69 @@ def fill_voids_ui(
         if pos is None:
             return
         x, y = pos
-        # operate only inside allowed interior (contour fixed, but voids included)
         if interior_allowed[y, x] == 0:
             return
 
-        # Recompute current mask so we click on up-to-date void / filled region
         push_undo()
         _recompute_mask()
         m = state["m_u8"]
 
-        # Choose connected component: either current void or bright filled area
         if state["mode"] == "fill_void":
-            target_binary = ((m == 0) & (interior_allowed > 0)).astype(np.uint8)
-        else:  # erase_void – only over bright (white-ish) regions
-            # estimate bright threshold from interior background once
+            # Fill void: whole connected voids that intersect brush radius
+            void_seed = ((interior_allowed > 0) & (m == 0)).astype(np.uint8)
+            if void_seed[y, x] == 0:
+                return
+            num, labels = cv2.connectedComponents(void_seed, connectivity=4)
+            if num <= 1:
+                return
+            brush = np.zeros((h, w), dtype=np.uint8)
+            cv2.circle(brush, (x, y), FILL_VOID_RADIUS_PX, 1, thickness=-1)
+            brush_hits = (brush > 0) & (labels > 0)
+            if not np.any(brush_hits):
+                return
+            touched_labels = np.unique(labels[brush_hits])
+            if touched_labels.size == 0:
+                return
+            comp = np.isin(labels, touched_labels)
+            edit_add_u8[comp] = 255
+            edit_del_u8[comp] = 0
+        else:  # erase_void – whole connected component (bright region)
             bg_vals = gray[(interior_allowed > 0) & (mask_base == 0)]
             if bg_vals.size > 0:
                 thr_bright = int(np.percentile(bg_vals, 70))
             else:
                 thr_bright = 200
             target_binary = ((m > 0) & (interior_allowed > 0) & (gray >= thr_bright)).astype(np.uint8)
-
-        if target_binary[y, x] == 0:
-            return
-
-        num, labels = cv2.connectedComponents(target_binary, connectivity=4)
-        lbl = labels[y, x]
-        if lbl == 0:
-            return
-        comp = labels == lbl
-
-        if state["mode"] == "fill_void":
-            edit_add_u8[comp] = 255
-            edit_del_u8[comp] = 0
-        else:  # erase_void
+            if target_binary[y, x] == 0:
+                return
+            num, labels = cv2.connectedComponents(target_binary, connectivity=4)
+            lbl = labels[y, x]
+            if lbl == 0:
+                return
+            comp = labels == lbl
             edit_del_u8[comp] = 255
             edit_add_u8[comp] = 0
 
         state["dirty"] = True
 
     canvas.bind("<Button-1>", _apply_brush)
-    # Для whole-component поведения достаточно реакции на одиночные клики.
+
+    def _on_wheel(ev: tk.Event) -> None:
+        delta = 0
+        if getattr(ev, "num", None) == 5 or (hasattr(ev, "delta") and ev.delta < 0):
+            delta = -10
+        elif getattr(ev, "num", None) == 4 or (hasattr(ev, "delta") and ev.delta > 0):
+            delta = 10
+        if delta == 0:
+            return
+        z = int(var_zoom.get()) + delta
+        z = max(50, min(300, z))
+        var_zoom.set(z)
+        state["dirty"] = True
+
+    canvas.bind("<MouseWheel>", _on_wheel)
+    canvas.bind("<Button-4>", _on_wheel)
+    canvas.bind("<Button-5>", _on_wheel)
 
     def _tick() -> None:
         if state["dirty"]:

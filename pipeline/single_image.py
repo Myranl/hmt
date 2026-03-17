@@ -13,7 +13,7 @@ from ui.roi.run_ui_and_get_params import run_ui_and_get_params
 from preproc.quantize import sketch_three_bins, small_components_to_gray, apply_midline_cut_to_sketch
 
 from viz.overlay import _overlay_masks_on_original
-from ui.brain.threshold_ui import brain_mask_auto
+from ui.brain.threshold_ui import brain_mask_auto, brain_mask_threshold_ui
 from ui.brain.brain_outline_UI import brain_outline_ui, overlay_mask_outline_rgb
 from ui.brain.fill_voids_ui import fill_voids_ui
 from ui.brain.hemisphere import midline_ui
@@ -60,9 +60,19 @@ def process_one_image(
     img2_proc[~brain_mask_ds] = (255, 255, 255)
 
     # Step 1: refine / override brain mask with outline UI.
-    # `init_mask` is only used as a starting point for cropping; the user-edited
-    # outline fully defines the new brain mask.
-    brain_mask_outline, brain_outline_params = brain_outline_ui(img2_vis, init_mask=brain_mask_ds)
+    # If user clicks "Re-run threshold", Brain outline closes; we open threshold here, then re-open Brain outline.
+    while True:
+        brain_mask_outline, brain_outline_params = brain_outline_ui(img2_vis, init_mask=brain_mask_ds)
+        if brain_outline_params.get("rerun_threshold"):
+            gray0 = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY)
+            bm_res = brain_mask_threshold_ui(gray0, img2, pad=50)
+            if bm_res is None:
+                continue
+            brain_mask_ds = bm_res.mask.astype(bool)
+            img2_vis = img2.copy()
+            img2_vis[~brain_mask_ds] = (230, 230, 230)
+            continue
+        break
     brain_mask_step1 = brain_mask_outline.astype(bool)
 
     # If user checked "Non-complete contour", run contour editor as the next step (fix breaks/gaps).

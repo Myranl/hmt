@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 from PIL import Image, ImageTk
 
 import customtkinter as ctk  # type: ignore[import-untyped]
@@ -329,8 +329,6 @@ def brain_outline_ui(
         root.destroy()
 
     def do_skip() -> None:
-        if not messagebox.askyesno("Skip image?", "Skip this image without saving the brain outline?", parent=root):
-            return
         state["cancelled"] = True
         for aid in _tick_id:
             try:
@@ -354,25 +352,20 @@ def brain_outline_ui(
     create_secondary_button(btns, text="Clear edits (C)", command=do_clear).grid(row=1, column=1, sticky="ew", pady=(6, 0))
 
     def do_rerun_threshold() -> None:
-        gray0 = cv2.cvtColor(img0, cv2.COLOR_RGB2GRAY)
-        bm_res = brain_mask_threshold_ui(gray0, img0, pad=50)
-        if bm_res is None:
-            return
-        mask_full = bm_res.mask  # bool, (h0, w0)
-        # Convert full-res mask into the current UI resolution (same downsample as `img`)
-        if scale < 1.0:
-            new_w, new_h = int(round(w0 * scale)), int(round(h0 * scale))
-            mask_crop = cv2.resize(
-                (mask_full.astype(np.uint8) * 255), (new_w, new_h), interpolation=cv2.INTER_NEAREST
-            )
-        else:
-            mask_crop = (mask_full.astype(np.uint8)) * 255
-        state["_cache_auto"] = mask_crop.copy()
-        state["_cache_auto_key"] = ("threshold_override",)
-        edit_add_u8[:] = 0
-        edit_del_u8[:] = 0
-        mark_dirty()
-        _render_vis()
+        """Close this window immediately; pipeline will open threshold and then re-open Brain outline."""
+        state["rerun_threshold"] = True
+        for aid in _tick_id:
+            try:
+                root.after_cancel(aid)
+            except Exception:
+                pass
+        _tick_id.clear()
+        root.protocol("WM_DELETE_WINDOW", lambda: None)
+        try:
+            root.quit()
+        except Exception:
+            pass
+        root.destroy()
 
     ttk.Button(lf_morph, text="Re-run threshold…", command=do_rerun_threshold).grid(row=4, column=0, columnspan=3, sticky="ew", pady=(8, 0))
 
@@ -710,6 +703,21 @@ def brain_outline_ui(
     # ------------------------
     # Finalize
     # ------------------------
+    if state.get("rerun_threshold"):
+        return np.zeros((h0, w0), dtype=bool), {
+            "accepted": False,
+            "cancelled": False,
+            "rerun_threshold": True,
+            "thr": int(var_thr.get()),
+            "close": int(_odd(max(1, int(var_close.get())))),
+            "open": int(_odd(max(1, int(var_open.get())))),
+            "smooth": int(_odd(max(1, int(var_smooth.get())))),
+            "scale": float(scale),
+            "area_px": 0,
+            "perim_px": 0.0,
+            "non_complete_contour": bool(var_non_complete_contour.get()),
+        }
+
     if bool(state["cancelled"]) or not bool(state["accepted"]):
         return np.zeros((h0, w0), dtype=bool), {
             "accepted": False,

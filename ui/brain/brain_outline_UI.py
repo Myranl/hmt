@@ -102,30 +102,18 @@ def brain_outline_ui(
 
     img0 = img_rgb
     h0, w0 = img0.shape[:2]
-    crop_bbox: tuple[int, int, int, int] | None = None  # (y0, x0, y1, x1) in full image
+    crop_bbox: tuple[int, int, int, int] | None = None  # kept for backward-compat, not used now
 
-    scale = 1.0
-    if init_mask is not None and init_mask.shape[:2] == (h0, w0) and np.any(init_mask):
-        ys, xs = np.where(init_mask)
-        if ys.size > 0 and xs.size > 0:
-            y0 = max(0, int(ys.min()) - crop_pad)
-            y1 = min(h0, int(ys.max()) + 1 + crop_pad)
-            x0 = max(0, int(xs.min()) - crop_pad)
-            x1 = min(w0, int(xs.max()) + 1 + crop_pad)
-            crop_bbox = (y0, x0, y1, x1)
-            img = img0[y0:y1, x0:x1].copy()
-            # no pre-downsample: minimal reduction (only fit to canvas later)
-        else:
-            img = img0
+    # Always work on the full image here and only downsample uniformly for speed.
+    # This keeps the outline in this UI consistent with what the user saw in
+    # `brain_mask_threshold_ui` (no extra crop by the old auto mask).
+    scale = min(1.0, downsample_max_side / float(max(h0, w0)))
+    if scale < 1.0:
+        new_w = int(round(w0 * scale))
+        new_h = int(round(h0 * scale))
+        img = cv2.resize(img0, (new_w, new_h), interpolation=cv2.INTER_AREA)
     else:
-        # No crop: optional downsample for large images
-        scale = min(1.0, downsample_max_side / float(max(h0, w0)))
-        if scale < 1.0:
-            new_w = int(round(w0 * scale))
-            new_h = int(round(h0 * scale))
-            img = cv2.resize(img0, (new_w, new_h), interpolation=cv2.INTER_AREA)
-        else:
-            img = img0
+        img = img0
 
     h, w = img.shape[:2]
 
@@ -371,17 +359,14 @@ def brain_outline_ui(
         if bm_res is None:
             return
         mask_full = bm_res.mask  # bool, (h0, w0)
-        if crop_bbox is not None:
-            y0, x0, y1, x1 = crop_bbox
-            mask_crop = (mask_full[y0:y1, x0:x1].astype(np.uint8)) * 255
+        # Convert full-res mask into the current UI resolution (same downsample as `img`)
+        if scale < 1.0:
+            new_w, new_h = int(round(w0 * scale)), int(round(h0 * scale))
+            mask_crop = cv2.resize(
+                (mask_full.astype(np.uint8) * 255), (new_w, new_h), interpolation=cv2.INTER_NEAREST
+            )
         else:
-            if scale < 1.0:
-                new_w, new_h = int(round(w0 * scale)), int(round(h0 * scale))
-                mask_crop = cv2.resize(
-                    (mask_full.astype(np.uint8) * 255), (new_w, new_h), interpolation=cv2.INTER_NEAREST
-                )
-            else:
-                mask_crop = (mask_full.astype(np.uint8)) * 255
+            mask_crop = (mask_full.astype(np.uint8)) * 255
         state["_cache_auto"] = mask_crop.copy()
         state["_cache_auto_key"] = ("threshold_override",)
         edit_add_u8[:] = 0

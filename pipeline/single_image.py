@@ -59,9 +59,11 @@ def process_one_image(
     img2_proc = img2.copy()
     img2_proc[~brain_mask_ds] = (255, 255, 255)
 
-    # Step 1: refine brain mask with outline UI (cropped to contour from previous step, minimal reduction)
+    # Step 1: refine / override brain mask with outline UI.
+    # `init_mask` is only used as a starting point for cropping; the user-edited
+    # outline fully defines the new brain mask.
     brain_mask_outline, brain_outline_params = brain_outline_ui(img2_vis, init_mask=brain_mask_ds)
-    brain_mask_step1 = (brain_mask_outline.astype(bool) & brain_mask_ds)
+    brain_mask_step1 = brain_mask_outline.astype(bool)
 
     # If user checked "Non-complete contour", run contour editor as the next step (fix breaks/gaps).
     if brain_outline_params.get("non_complete_contour", False):
@@ -72,10 +74,9 @@ def process_one_image(
         brain_outline_params["correction_type"] = edit_params.get("correction_type", "none")
 
     # Step 1b: fill internal voids inside the fixed contour.
-    # `fill_voids_ui` already constrains operations to the interior of the contour,
-    # so here we only intersect with the original downsampled brain mask.
+    # `fill_voids_ui` already constrains operations to the interior of the contour.
     brain_mask_filled_u8, fill_params = fill_voids_ui(img2_vis, brain_mask_step1.astype(np.uint8) * 255)
-    brain_mask_final = (brain_mask_filled_u8.astype(bool) & brain_mask_ds)
+    brain_mask_final = brain_mask_filled_u8.astype(bool)
 
     midline_params = midline_ui(img2_vis, brain_mask_final, pad=50)
     midline_params_orig = midline_params_to_orig(midline_params, sx, sy)

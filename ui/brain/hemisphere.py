@@ -1,10 +1,21 @@
 from __future__ import annotations
+import sys
 import numpy as np
 import cv2
 import json
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
+
+import customtkinter as ctk  # type: ignore[import-untyped]
+
+from ui.common.theme import setup_theme, get_base_font
+from ui.common.widgets import (
+    create_card_frame,
+    create_primary_button,
+    create_secondary_button,
+    create_status_label,
+)
 
 
 def _bbox_from_mask(mask: np.ndarray) -> tuple[int, int, int, int] | None:
@@ -114,7 +125,7 @@ def midline_ui(
         "pts": [a.copy(), b.copy()],
     }
 
-    HANDLE_R = 12
+    HANDLE_R = 14
 
     def redraw() -> np.ndarray:
         d = disp_base.copy()
@@ -126,16 +137,16 @@ def midline_ui(
                 cv2.polylines(d, [poly], isClosed=False, color=line_color_bgr, thickness=line_thickness, lineType=cv2.LINE_AA)
             for p in pts:
                 pp = tuple(np.round(p).astype(int))
-                # white center with black outline
-                cv2.circle(d, pp, HANDLE_R + 2, (0, 0, 0), -1, cv2.LINE_AA)
+                # white center with thicker black outline
+                cv2.circle(d, pp, HANDLE_R + 4, (0, 0, 0), -1, cv2.LINE_AA)
                 cv2.circle(d, pp, HANDLE_R, (255, 255, 255), -1, cv2.LINE_AA)
         else:
             aa = tuple(np.round(state["a"]).astype(int))
             bb = tuple(np.round(state["b"]).astype(int))
             cv2.line(d, aa, bb, line_color_bgr, line_thickness, cv2.LINE_AA)
-            cv2.circle(d, aa, HANDLE_R + 2, (0, 0, 0), -1, cv2.LINE_AA)
+            cv2.circle(d, aa, HANDLE_R + 4, (0, 0, 0), -1, cv2.LINE_AA)
             cv2.circle(d, aa, HANDLE_R, (255, 255, 255), -1, cv2.LINE_AA)
-            cv2.circle(d, bb, HANDLE_R + 2, (0, 0, 0), -1, cv2.LINE_AA)
+            cv2.circle(d, bb, HANDLE_R + 4, (0, 0, 0), -1, cv2.LINE_AA)
             cv2.circle(d, bb, HANDLE_R, (255, 255, 255), -1, cv2.LINE_AA)
         return d
 
@@ -154,83 +165,107 @@ def midline_ui(
             return j
         return None
 
-    # --- Tk window ---
-    parent = tk._default_root
-    if parent is None:
-        root = tk.Tk()
-    else:
-        root = tk.Toplevel(parent)
-        root.transient(parent)
-    try:
-        root.grab_set()
-    except Exception:
-        pass
-    root.title("Midline")
+    # --- CTk window (reuse app-wide theme) ---
+    setup_theme()
+    root = ctk.CTk()
+    # On Windows, grab_set() can prevent the window from appearing; skip it there.
+    if sys.platform != "win32":
+        try:
+            root.grab_set()
+        except Exception:
+            pass
+    root.title(window)
+    root.minsize(900, 580)
+    root.configure(fg_color="white")
+    root.grid_columnconfigure(0, weight=1)
+    root.grid_rowconfigure(0, weight=1)
 
-    frm = ttk.Frame(root, padding=8)
-    frm.pack(fill="both", expand=True)
-    frm.columnconfigure(0, weight=1)
-    frm.rowconfigure(1, weight=1)
+    # Single main card: controls on top/bottom, image in the middle
+    img_card = create_card_frame(root)
+    img_card.grid(row=0, column=0, sticky="nsew", padx=18, pady=18)
+    img_card.columnconfigure(0, weight=1)
+    img_card.rowconfigure(1, weight=1)  # canvas grows
 
-    ctrl = ttk.Frame(frm)
-    ctrl.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-    ctrl.columnconfigure(0, weight=1)
+    base_font = get_base_font()
 
-    top_info = ttk.Frame(ctrl)
-    top_info.grid(row=0, column=0, sticky="ew")
-    top_info.columnconfigure(1, weight=1)
-
-    ttk.Label(top_info, text="Midline", font=("TkDefaultFont", 14, "bold")).grid(row=0, column=0, sticky="w", padx=(0, 14))
-
-    mode_var = tk.StringVar(value="MODE: POLYLINE")
-    ttk.Label(top_info, textvariable=mode_var, font=("TkDefaultFont", 11, "bold")).grid(row=0, column=1, sticky="w", padx=(0, 14))
+    # Top bar: title + instructions + Undo / Reset on the right
+    top_bar = ctk.CTkFrame(img_card, fg_color="transparent")
+    top_bar.grid(row=0, column=0, sticky="ew", padx=18, pady=(14, 8))
+    top_bar.columnconfigure(0, weight=1)
+    top_left = ctk.CTkFrame(top_bar, fg_color="transparent")
+    top_left.grid(row=0, column=0, sticky="w")
+    ctk.CTkLabel(top_left, text="Midline", font=ctk.CTkFont(size=16, weight="bold")).grid(
+        row=0, column=0, sticky="w"
+    )
+    create_status_label(
+        top_left,
+        text="Drag points to adjust the midline. Click on the line to add points.",
+        wraplength=360,
+    ).grid(row=1, column=0, sticky="w", pady=(2, 0))
 
     status_var = tk.StringVar(value="")
-    ttk.Label(top_info, textvariable=status_var, justify="left").grid(row=0, column=2, sticky="w")
+    ctk.CTkLabel(top_left, textvariable=status_var, font=base_font, text_color="gray50").grid(
+        row=2, column=0, sticky="w", pady=(4, 0)
+    )
 
-    ttk.Label(
-        ctrl,
-        text="Drag endpoints/points. P: polyline  U: undo  R: reset  Enter: accept  Esc: cancel",
-        justify="left",
-    ).grid(row=1, column=0, sticky="w", pady=(6, 8))
+    tools_bar = ctk.CTkFrame(top_bar, fg_color="transparent")
+    tools_bar.grid(row=0, column=1, sticky="e", padx=(12, 0))
+    tools_bar.columnconfigure(0, weight=1)
+    tools_bar.columnconfigure(1, weight=1)
+    btn_undo = create_secondary_button(tools_bar, text="Undo", command=lambda: None)
+    btn_undo.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+    btn_reset = create_secondary_button(tools_bar, text="Reset", command=lambda: None)
+    btn_reset.grid(row=0, column=1, sticky="ew")
 
-    btns = ttk.Frame(ctrl)
-    btns.grid(row=2, column=0, sticky="ew")
-    for i in range(5):
-        btns.columnconfigure(i, weight=1)
-
-    frm_canvas = ttk.Frame(frm)
-    frm_canvas.grid(row=1, column=0, sticky="nsew")
-    scroll_y = ttk.Scrollbar(frm_canvas)
-    scroll_x = ttk.Scrollbar(frm_canvas, orient=tk.HORIZONTAL)
-    canvas = tk.Canvas(frm_canvas, highlightthickness=0, bg="#111")
+    # Middle: canvas with scrollbars
+    canvas_holder = tk.Frame(img_card)
+    canvas_holder.grid(row=1, column=0, sticky="nsew")
+    canvas_holder.columnconfigure(0, weight=1)
+    canvas_holder.rowconfigure(0, weight=1)
+    scroll_y = ttk.Scrollbar(canvas_holder)
+    scroll_x = ttk.Scrollbar(canvas_holder, orient=tk.HORIZONTAL)
+    canvas = tk.Canvas(canvas_holder, highlightthickness=0, bg="#e8e8e8")
     canvas.grid(row=0, column=0, sticky="nsew")
     scroll_y.grid(row=0, column=1, sticky="ns")
     scroll_x.grid(row=1, column=0, sticky="ew")
     canvas.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
     scroll_y.configure(command=canvas.yview)
     scroll_x.configure(command=canvas.xview)
-    frm_canvas.columnconfigure(0, weight=1)
-    frm_canvas.rowconfigure(0, weight=1)
 
+    # Bottom: Skip (left) / Accept (right)
+    actions = ctk.CTkFrame(img_card, fg_color="transparent")
+    actions.grid(row=2, column=0, sticky="ew", padx=18, pady=(10, 4))
+    actions.columnconfigure(0, weight=1)
+    actions.columnconfigure(1, weight=1)
+    btn_skip = create_secondary_button(actions, text="Skip", command=lambda: None)
+    btn_skip.grid(row=0, column=0, sticky="w")
+    btn_accept = create_primary_button(actions, text="Accept", command=lambda: None)
+    btn_accept.grid(row=0, column=1, sticky="e")
+
+    # Initial display scale – updated on first refresh based on actual canvas size
+    disp_scale = 1.0
+    disp_w = w
+    disp_h = h
+
+    # Start window from a reasonable fraction of the screen
+    # (actual brain size is handled by _refresh via disp_scale)
     try:
         screen_w = int(root.winfo_screenwidth())
         screen_h = int(root.winfo_screenheight())
     except Exception:
         screen_w, screen_h = 1400, 900
+    win_w = max(900, int(screen_w * 0.75))
+    win_h = max(580, int(screen_h * 0.75))
+    root.geometry(f"{win_w}x{win_h}")
 
-    max_canvas_w = int(screen_w * 0.90)
-    max_canvas_h = int(screen_h * 0.75)
-    disp_scale = min(1.0, max_canvas_w / float(w), max_canvas_h / float(h))
-    disp_w = int(round(w * disp_scale))
-    disp_h = int(round(h * disp_scale))
-    canvas.configure(width=min(disp_w, max_canvas_w), height=min(disp_h, max_canvas_h))
-
-    root.update_idletasks()
-    ctrl_h = int(ctrl.winfo_reqheight())
-    total_w = min(max(disp_w + 24, 700), int(screen_w * 0.95))
-    total_h = min(max(ctrl_h + disp_h + 40, 500), int(screen_h * 0.92))
-    root.geometry(f"{total_w}x{total_h}")
+    def _get_canvas_size() -> tuple[int, int]:
+        cw = canvas_holder.winfo_width() or 700
+        ch = canvas_holder.winfo_height() or 500
+        if cw < 200:
+            cw = 700
+        if ch < 200:
+            ch = 500
+        return cw, ch
 
     tk_img_ref: dict[str, ImageTk.PhotoImage] = {}
     canvas_img_id: list[int] = []
@@ -242,10 +277,13 @@ def midline_ui(
         if len(undo_stack) > 50:
             undo_stack.pop(0)
 
-    def _set_mode_label() -> None:
-        mode_var.set("MODE: POLYLINE" if state["poly_mode"] else "MODE: LINE")
-
     def _refresh() -> None:
+        nonlocal disp_scale, disp_w, disp_h
+        cw, ch = _get_canvas_size()
+        disp_scale = min(1.0, cw / float(w), ch / float(h))
+        disp_w = int(round(w * disp_scale))
+        disp_h = int(round(h * disp_scale))
+        canvas.configure(width=cw, height=ch)
         disp = redraw()
         if disp_scale < 1.0:
             disp = cv2.resize(disp, (disp_w, disp_h), interpolation=cv2.INTER_NEAREST)
@@ -260,7 +298,6 @@ def midline_ui(
         else:
             canvas.itemconfigure(canvas_img_id[0], image=tk_img)
         canvas.configure(scrollregion=(0, 0, disp_w, disp_h))
-        _set_mode_label()
 
     def _canvas_xy(ev) -> tuple[int, int] | None:
         cx = canvas.canvasx(ev.x)
@@ -321,7 +358,8 @@ def midline_ui(
             pass
         root.destroy()
 
-    def do_cancel() -> None:
+    def do_skip() -> None:
+        result["accepted"] = False
         result["cancelled"] = True
         try:
             root.grab_release()
@@ -349,39 +387,36 @@ def midline_ui(
         undo_stack.clear()
         _refresh()
 
-    def do_toggle_poly() -> None:
-        _push_undo()
-        state["poly_mode"] = not bool(state["poly_mode"])
-        if state["poly_mode"]:
-            state["pts"] = [state["a"].copy(), state["b"].copy()]
-        else:
-            pts = [p.copy() for p in state["pts"]] if state.get("pts") else [state["a"].copy(), state["b"].copy()]
-            pts.sort(key=lambda p: float(p[1]))
-            state["a"], state["b"] = pts[0].copy(), pts[-1].copy()
-        state["drag"] = None
-        _refresh()
-
-    ttk.Button(btns, text="Accept (Enter)", command=do_accept).grid(row=0, column=0, sticky="ew", padx=(0, 6))
-    ttk.Button(btns, text="Cancel (Esc)", command=do_cancel).grid(row=0, column=1, sticky="ew", padx=(0, 6))
-    ttk.Button(btns, text="Undo (U)", command=do_undo).grid(row=0, column=2, sticky="ew", padx=(0, 6))
-    ttk.Button(btns, text="Reset (R)", command=do_reset).grid(row=0, column=3, sticky="ew", padx=(0, 6))
-    ttk.Button(btns, text="Polyline (P)", command=do_toggle_poly).grid(row=0, column=4, sticky="ew")
+    # Wire buttons (defined above in ctrl panel)
+    btn_undo.configure(command=do_undo)
+    btn_reset.configure(command=do_reset)
+    btn_skip.configure(command=do_skip)
+    btn_accept.configure(command=do_accept)
 
     canvas.bind("<Button-1>", on_press)
     canvas.bind("<B1-Motion>", on_motion)
     canvas.bind("<ButtonRelease-1>", on_release)
 
     root.bind("<Return>", lambda _e: do_accept())
-    root.bind("<Escape>", lambda _e: do_cancel())
+    root.bind("<Escape>", lambda _e: do_skip())
     root.bind("u", lambda _e: do_undo())
     root.bind("U", lambda _e: do_undo())
     root.bind("r", lambda _e: do_reset())
     root.bind("R", lambda _e: do_reset())
-    root.bind("p", lambda _e: do_toggle_poly())
-    root.bind("P", lambda _e: do_toggle_poly())
 
     _refresh()
-    root.wait_window(root)
+    # Recompute layout when window is resized
+    canvas_holder.bind("<Configure>", lambda _e: _refresh())
+
+    # On Windows, CTk windows sometimes don't appear; mainloop() + force show helps.
+    root.update_idletasks()
+    root.deiconify()
+    root.lift()
+    try:
+        root.focus_force()
+    except Exception:
+        pass
+    root.mainloop()
 
     if result["cancelled"] or not result["accepted"]:
         return None

@@ -6,6 +6,15 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
 
+import customtkinter as ctk  # type: ignore[import-untyped]
+
+from ui.common.theme import setup_theme, get_base_font, get_small_muted_font
+from ui.common.widgets import (
+    create_card_frame,
+    create_primary_button,
+    create_secondary_button,
+    create_status_label,
+)
 from ui.brain.mask_morphology import _fill_holes, remove_voids_inside_mask
 
 
@@ -86,74 +95,102 @@ def fill_voids_ui(
         "mode": "none",  # "erase_void" | "fill_void"
     }
 
-    root = tk.Tk()
+    setup_theme()
+    root = ctk.CTk()
     root.title(window)
+    root.minsize(900, 580)
+    root.geometry("1100x640")
+    root.configure(fg_color="white")
+    root.grid_columnconfigure(0, weight=1)
+    root.grid_rowconfigure(0, weight=1)
 
-    frm = ttk.Frame(root, padding=8)
-    frm.grid(row=0, column=0, sticky="nsew")
-    root.columnconfigure(0, weight=1)
-    root.rowconfigure(0, weight=1)
-    frm.columnconfigure(0, weight=1)
-    frm.rowconfigure(0, weight=1)
-
-    canvas = tk.Canvas(frm, highlightthickness=0, bg="#111")
+    # Left: image card
+    img_card = create_card_frame(root)
+    img_card.grid(row=0, column=0, sticky="nsew", padx=(18, 10), pady=18)
+    img_card.columnconfigure(0, weight=1)
+    img_card.rowconfigure(0, weight=1)
+    canvas_holder = tk.Frame(img_card)
+    canvas_holder.grid(row=0, column=0, sticky="nsew")
+    canvas_holder.columnconfigure(0, weight=1)
+    canvas_holder.rowconfigure(0, weight=1)
+    scroll_y = ttk.Scrollbar(canvas_holder)
+    scroll_x = ttk.Scrollbar(canvas_holder, orient=tk.HORIZONTAL)
+    canvas = tk.Canvas(canvas_holder, highlightthickness=0, bg="#e8e8e8")
     canvas.grid(row=0, column=0, sticky="nsew")
+    scroll_y.grid(row=0, column=1, sticky="ns")
+    scroll_x.grid(row=1, column=0, sticky="ew")
+    canvas.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
+    scroll_y.configure(command=canvas.yview)
+    scroll_x.configure(command=canvas.xview)
 
-    ctrl = ttk.Frame(frm, width=260)
-    ctrl.grid(row=0, column=1, sticky="nsw", padx=(8, 0))
+    # Right: controls card (same style as folder selection / contour editor)
+    ctrl = create_card_frame(root)
+    ctrl.grid(row=0, column=1, sticky="ns", padx=(0, 18), pady=18)
     ctrl.grid_propagate(False)
+    ctrl.configure(width=300)
 
-    ttk.Label(ctrl, text="Step 2: fill voids", font=("TkDefaultFont", 13, "bold")).grid(
-        row=0, column=0, sticky="w", pady=(0, 4)
-    )
-    ttk.Label(
+    base_font = get_base_font()
+    ctk.CTkLabel(ctrl, text="Fill voids", font=ctk.CTkFont(size=16, weight="bold")).grid(
+        row=0, column=0, sticky="w", padx=14, pady=(14, 6))
+    create_status_label(
         ctrl,
-        text="Adjust filling of holes inside the mask.\nOuter contour is fixed and will not change here.",
-        justify="left",
-    ).grid(row=1, column=0, sticky="w", pady=(0, 6))
+        text="Adjust filling of holes inside the mask. Outer contour is fixed and will not change here.",
+        wraplength=260,
+    ).grid(row=1, column=0, sticky="w", padx=14, pady=(0, 10))
 
     var_min_void = tk.IntVar(value=int(init_min_void_area))
     var_auto_remove = tk.BooleanVar(value=True)
     var_show_mask_only = tk.BooleanVar(value=False)
 
-    lf_auto = ttk.LabelFrame(ctrl, text="Automatic void removal", padding=6)
-    lf_auto.grid(row=2, column=0, sticky="ew", pady=(0, 6))
-    lf_auto.columnconfigure(1, weight=1)
-    ttk.Label(lf_auto, text="min void area (px)").grid(row=0, column=0, sticky="w")
-    s_min = ttk.Scale(lf_auto, from_=float(slider_min_void), to=float(slider_max_void), orient="horizontal")
-    s_min.set(float(var_min_void.get()))
+    # --- Automatic void removal (clear rows: label, then −10 / entry / +10, then checkbox) ---
+    lf_auto = ctk.CTkFrame(ctrl, fg_color="transparent")
+    lf_auto.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 10))
+    lf_auto.columnconfigure(0, weight=1)
+    ctk.CTkLabel(lf_auto, text="Automatic void removal", font=ctk.CTkFont(size=13, weight="bold")).grid(
+        row=0, column=0, sticky="w", pady=(0, 6))
 
-    def _on_min_scale(val: str) -> None:
+    ctk.CTkLabel(lf_auto, text="min void area (px)", font=base_font).grid(row=1, column=0, sticky="w", pady=(0, 4))
+
+    def _step_min_void(delta: int) -> None:
         try:
-            var_min_void.set(max(1, int(float(val) + 0.5)))
+            v = var_min_void.get()
+            var_min_void.set(max(1, v + delta))
         except Exception:
-            pass
+            var_min_void.set(1)
         state["dirty"] = True
         _update_canvas()
 
-    s_min.configure(command=_on_min_scale)
-    s_min.grid(row=0, column=1, sticky="ew", pady=2)
+    row_min = ctk.CTkFrame(lf_auto, fg_color="transparent")
+    row_min.grid(row=2, column=0, sticky="ew", pady=(0, 8))
+    row_min.columnconfigure(1, weight=1)
+    ctk.CTkButton(row_min, text="−10", width=50, command=lambda: _step_min_void(-10)).grid(row=0, column=0, padx=(0, 6))
+    entry_min_void = ttk.Entry(row_min, textvariable=var_min_void, width=10)
+    entry_min_void.grid(row=0, column=1, sticky="ew", padx=4)
+    ctk.CTkButton(row_min, text="+10", width=50, command=lambda: _step_min_void(10)).grid(row=0, column=2, padx=(6, 0))
 
-    def _on_min_var(*_a) -> None:
+    def _on_entry_commit(*_a) -> None:
         try:
-            s_min.set(float(var_min_void.get()))
+            v = int(var_min_void.get())
+            var_min_void.set(max(1, v))
         except Exception:
-            pass
+            var_min_void.set(1)
         state["dirty"] = True
         _update_canvas()
 
-    var_min_void.trace_add("write", _on_min_var)
+    entry_min_void.bind("<Return>", _on_entry_commit)
+    entry_min_void.bind("<FocusOut>", _on_entry_commit)
 
     def _on_auto_remove() -> None:
         state["dirty"] = True
         _update_canvas()
 
-    ttk.Checkbutton(
+    ctk.CTkCheckBox(
         lf_auto,
         text="Remove small voids automatically",
         variable=var_auto_remove,
         command=_on_auto_remove,
-    ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        font=base_font,
+    ).grid(row=3, column=0, sticky="w", pady=(4, 0))
 
     mode_var = tk.StringVar(value="MODE: AUTO ONLY")
 
@@ -162,47 +199,25 @@ def fill_voids_ui(
         pretty = {"erase_void": "ERASE VOID", "fill_void": "FILL VOID"}.get(name, "AUTO ONLY")
         mode_var.set(f"MODE: {pretty}")
 
-    ttk.Label(ctrl, textvariable=mode_var, font=("TkDefaultFont", 11, "bold")).grid(
-        row=3, column=0, sticky="w", pady=(4, 4)
-    )
+    ctk.CTkLabel(ctrl, textvariable=mode_var, font=ctk.CTkFont(size=12, weight="bold")).grid(
+        row=3, column=0, sticky="w", padx=14, pady=(8, 6))
 
-    btns = ttk.Frame(ctrl)
-    btns.grid(row=4, column=0, sticky="ew")
-    btns.columnconfigure(0, weight=1)
-    btns.columnconfigure(1, weight=1)
-
-    def do_accept() -> None:
-        state["accepted"] = True
-        root.destroy()
-
-    def do_skip() -> None:
-        state["accepted"] = False
-        root.destroy()
-
-    ttk.Button(btns, text="Accept", command=do_accept).grid(row=0, column=0, sticky="ew", padx=(0, 4))
-    ttk.Button(btns, text="Skip", command=do_skip).grid(row=0, column=1, sticky="ew")
-
-    # Manual brush modes
-    btn_brush = ttk.Frame(ctrl)
-    btn_brush.grid(row=5, column=0, sticky="ew", pady=(6, 0))
+    btn_brush = ctk.CTkFrame(ctrl, fg_color="transparent")
+    btn_brush.grid(row=4, column=0, sticky="ew", padx=14, pady=(0, 6))
     btn_brush.columnconfigure(0, weight=1)
     btn_brush.columnconfigure(1, weight=1)
-    ttk.Button(
+    ctk.CTkButton(
         btn_brush,
         text="Erase void",
         command=lambda: (set_mode("erase_void"), state.__setitem__("dirty", True), _update_canvas()),
-    ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
-    ttk.Button(
+        width=100,
+    ).grid(row=0, column=0, padx=(0, 6))
+    ctk.CTkButton(
         btn_brush,
         text="Fill void",
         command=lambda: (set_mode("fill_void"), state.__setitem__("dirty", True), _update_canvas()),
-    ).grid(row=0, column=1, sticky="ew")
-
-    # Undo / clear for manual edits
-    btn_undo = ttk.Frame(ctrl)
-    btn_undo.grid(row=7, column=0, sticky="ew", pady=(6, 0))
-    btn_undo.columnconfigure(0, weight=1)
-    btn_undo.columnconfigure(1, weight=1)
+        width=100,
+    ).grid(row=0, column=1)
 
     def _do_undo() -> None:
         undo_last()
@@ -216,38 +231,53 @@ def fill_voids_ui(
         state["dirty"] = True
         _update_canvas()
 
-    ttk.Button(btn_undo, text="Undo", command=_do_undo).grid(row=0, column=0, sticky="ew", padx=(0, 4))
-    ttk.Button(btn_undo, text="Clear edits", command=_do_clear).grid(row=0, column=1, sticky="ew")
+    btn_undo = ctk.CTkFrame(ctrl, fg_color="transparent")
+    btn_undo.grid(row=5, column=0, sticky="ew", padx=14, pady=(0, 6))
+    btn_undo.columnconfigure(0, weight=1)
+    create_secondary_button(btn_undo, text="Undo", command=_do_undo).grid(row=0, column=0, sticky="w", padx=(0, 6))
+    create_secondary_button(btn_undo, text="Clear edits", command=_do_clear).grid(row=0, column=1, sticky="e")
 
-    # View options
-    lf_view = ttk.LabelFrame(ctrl, text="View", padding=4)
-    lf_view.grid(row=6, column=0, sticky="ew", pady=(6, 0))
     def _on_show_mask_only() -> None:
         state["dirty"] = True
         _update_canvas()
 
-    ttk.Checkbutton(
-        lf_view,
+    ctk.CTkCheckBox(
+        ctrl,
         text="Mask only (B&W)",
         variable=var_show_mask_only,
         command=_on_show_mask_only,
-    ).grid(row=0, column=0, sticky="w")
+        font=base_font,
+    ).grid(row=6, column=0, sticky="w", padx=14, pady=(8, 0))
+
+    def do_accept() -> None:
+        state["accepted"] = True
+        root.destroy()
+
+    def do_skip() -> None:
+        state["accepted"] = False
+        root.destroy()
+
+    bar = ctk.CTkFrame(ctrl, fg_color="transparent")
+    bar.grid(row=7, column=0, sticky="ew", padx=14, pady=(12, 14))
+    bar.columnconfigure(0, weight=1)
+    create_secondary_button(bar, text="Skip", command=do_skip).grid(row=0, column=0, sticky="w")
+    create_primary_button(bar, text="Accept", command=do_accept).grid(row=0, column=1, sticky="e")
 
     tk_img_ref: dict[str, ImageTk.PhotoImage | None] = {"img": None}
     canvas_img_id: list[int] = []
 
-    # Fit image into a reasonable window size (similar to outline UI)
-    try:
-        sw = int(root.winfo_screenwidth())
-        sh = int(root.winfo_screenheight())
-    except Exception:
-        sw, sh = 1400, 900
-    max_canvas_w = max(400, min(int(sw * 0.68), int(w)))
-    max_canvas_h = max(300, min(int(sh * 0.80), int(h)))
-    disp_scale = min(1.0, max_canvas_w / float(w), max_canvas_h / float(h))
-    disp_w = int(round(w * disp_scale))
-    disp_h = int(round(h * disp_scale))
-    canvas.configure(width=max_canvas_w, height=max_canvas_h)
+    def _get_canvas_size() -> tuple[int, int]:
+        cw = canvas_holder.winfo_width() or 700
+        ch = canvas_holder.winfo_height() or 500
+        if cw < 200:
+            cw = 700
+        if ch < 200:
+            ch = 500
+        return (cw, ch)
+
+    disp_scale = 1.0
+    disp_w = w
+    disp_h = h
 
     def _recompute_mask() -> None:
         m = mask_base.copy()
@@ -268,6 +298,13 @@ def fill_voids_ui(
         state["m_u8"] = m
 
     def _update_canvas() -> None:
+        nonlocal disp_scale, disp_w, disp_h
+        cw, ch = _get_canvas_size()
+        disp_scale = min(1.0, cw / float(w), ch / float(h))
+        disp_w = int(round(w * disp_scale))
+        disp_h = int(round(h * disp_scale))
+        canvas.configure(width=disp_w, height=disp_h)
+
         _recompute_mask()
         m = state["m_u8"]
         if bool(var_show_mask_only.get()):
@@ -357,6 +394,11 @@ def fill_voids_ui(
             _update_canvas()
         root.after(80, _tick)
 
+    def _on_holder_configure(_ev: tk.Event) -> None:
+        _update_canvas()
+
+    canvas_holder.bind("<Configure>", _on_holder_configure)
+    root.update_idletasks()
     _update_canvas()
     _tick()
     root.mainloop()

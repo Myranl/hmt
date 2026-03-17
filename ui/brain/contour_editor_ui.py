@@ -4,6 +4,16 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
 
+import customtkinter as ctk  # type: ignore[import-untyped]
+
+from ui.common.theme import setup_theme, get_base_font, get_small_muted_font
+from ui.common.widgets import (
+    create_card_frame,
+    create_primary_button,
+    create_secondary_button,
+    create_status_label,
+)
+
 
 def _get_contour_points(mask_u8: np.ndarray) -> np.ndarray | None:
     """Get main contour as (N, 2) array of (x, y). Returns None if no contour."""
@@ -99,9 +109,13 @@ def edit_contour_ui(
     h, w = brain_mask.shape[:2]
     img_bgr = cv2.cvtColor(original_image_rgb, cv2.COLOR_RGB2BGR)
 
-    # Working mask (uint8 0/255)
+    # Working mask (uint8 0/255) — break does NOT modify it; only "missing" (bridge) does
     mask_u8 = (brain_mask.astype(np.uint8)) * 255
     undo_stack: list[np.ndarray] = []
+
+    # Break = subset of contour points excluded from counted perimeter. Stored as (i,j): shorter arc i→j is "break".
+    # Mask and area stay unchanged; only which arc counts toward perimeter changes.
+    break_arcs: list[tuple[int, int]] = []
 
     mode = "break"  # "break" | "missing"
     pending_i: int | None = None
@@ -111,49 +125,61 @@ def edit_contour_ui(
     result_container: list[np.ndarray] = [brain_mask.copy()]
     result_params: dict = {"accepted": False, "edited": False, "correction_type": "none"}
 
-    root = tk.Tk()
+    setup_theme()
+    root = ctk.CTk()
     root.title(window)
-    root.minsize(800, 600)
-    root.geometry("1100x750")
+    root.minsize(900, 620)
+    root.geometry("1200x700")
+    root.configure(fg_color="white")
+    root.grid_columnconfigure(0, weight=1)
+    root.grid_rowconfigure(0, weight=1)
 
-    frm = ttk.Frame(root, padding=8)
-    frm.pack(fill="both", expand=True)
-    frm.columnconfigure(0, weight=1)
-    frm.rowconfigure(0, weight=1)
+    base_font = get_base_font()
+    small_font = get_small_muted_font()
 
-    frm_canvas = ttk.Frame(frm)
-    frm_canvas.grid(row=0, column=0, sticky="nsew")
-    scroll_y = ttk.Scrollbar(frm_canvas)
-    scroll_x = ttk.Scrollbar(frm_canvas, orient=tk.HORIZONTAL)
-    canvas = tk.Canvas(frm_canvas, highlightthickness=0, bg="#111")
+    # Left: image area (card) — canvas fits inside, scroll when image is large
+    img_card = create_card_frame(root)
+    img_card.grid(row=0, column=0, sticky="nsew", padx=(18, 10), pady=18)
+    img_card.columnconfigure(0, weight=1)
+    img_card.rowconfigure(0, weight=1)
+
+    canvas_holder = tk.Frame(img_card)
+    canvas_holder.grid(row=0, column=0, sticky="nsew")
+    canvas_holder.columnconfigure(0, weight=1)
+    canvas_holder.rowconfigure(0, weight=1)
+
+    scroll_y = ttk.Scrollbar(canvas_holder)
+    scroll_x = ttk.Scrollbar(canvas_holder, orient=tk.HORIZONTAL)
+    canvas = tk.Canvas(canvas_holder, highlightthickness=0, bg="#e8e8e8")
     canvas.grid(row=0, column=0, sticky="nsew")
     scroll_y.grid(row=0, column=1, sticky="ns")
     scroll_x.grid(row=1, column=0, sticky="ew")
     canvas.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
     scroll_y.configure(command=canvas.yview)
     scroll_x.configure(command=canvas.xview)
-    frm_canvas.columnconfigure(0, weight=1)
-    frm_canvas.rowconfigure(0, weight=1)
 
-    ctrl = ttk.Frame(frm, width=280)
-    ctrl.grid(row=0, column=1, sticky="ns", padx=(12, 0))
+    # Right: controls (card) — same style as folder selection
+    ctrl = create_card_frame(root)
+    ctrl.grid(row=0, column=1, sticky="ns", padx=(0, 18), pady=18)
     ctrl.grid_propagate(False)
+    ctrl.configure(width=320)
 
-    ttk.Label(ctrl, text="Contour Editor", font=("TkDefaultFont", 14, "bold")).grid(
-        row=0, column=0, sticky="w", pady=(0, 6))
-    lbl_hint = ttk.Label(
-        ctrl,
-        text="Break: click two points on contour to cut off that arc.\nMissing: click start and end of gap, then Apply to add a bridge.",
-        justify="left",
+    ctk.CTkLabel(ctrl, text="Contour Editor", font=ctk.CTkFont(size=16, weight="bold")).grid(
+        row=0, column=0, sticky="w", padx=14, pady=(14, 6))
+    hint_text = (
+        "Break: click two points — the arc between them is marked gray and excluded from perimeter. "
+        "Mask and area stay unchanged.\n\n"
+        "Missing: click start and end of gap, then Apply to add a bridge."
     )
-    lbl_hint.grid(row=1, column=0, sticky="w", pady=(0, 8))
+    create_status_label(ctrl, text=hint_text, wraplength=280).grid(
+        row=1, column=0, sticky="w", padx=14, pady=(0, 10))
 
     mode_var = tk.StringVar(value="MODE: Break")
-    ttk.Label(ctrl, textvariable=mode_var, font=("TkDefaultFont", 11, "bold")).grid(
-        row=2, column=0, sticky="w", pady=(0, 4))
+    ctk.CTkLabel(ctrl, textvariable=mode_var, font=ctk.CTkFont(size=12, weight="bold")).grid(
+        row=2, column=0, sticky="w", padx=14, pady=(0, 4))
     status_var = tk.StringVar(value="")
-    ttk.Label(ctrl, textvariable=status_var, justify="left").grid(
-        row=3, column=0, sticky="w", pady=(0, 8))
+    status_lbl = create_status_label(ctrl, textvariable=status_var, wraplength=280)
+    status_lbl.grid(row=3, column=0, sticky="w", padx=14, pady=(0, 10))
 
     def set_mode(m: str) -> None:
         nonlocal mode, pending_i, pending_j, bridge_control
@@ -161,6 +187,14 @@ def edit_contour_ui(
         pending_i = pending_j = None
         bridge_control = None
         mode_var.set("MODE: Break" if m == "break" else "MODE: Missing")
+        # Highlight active mode button (muted when selected)
+        _sel, _unsel = ("gray70", "gray35"), ("#3B8E3B", "#2d6b2d")
+        if m == "break":
+            btn_break.configure(fg_color=_sel)
+            btn_missing.configure(fg_color=_unsel)
+        else:
+            btn_missing.configure(fg_color=_sel)
+            btn_break.configure(fg_color=_unsel)
         _refresh()
 
     def push_undo() -> None:
@@ -168,6 +202,11 @@ def edit_contour_ui(
 
     def do_undo() -> None:
         nonlocal mask_u8, pending_i, pending_j, bridge_control
+        if break_arcs:
+            break_arcs.pop()
+            pending_i = pending_j = None
+            _refresh()
+            return
         if not undo_stack:
             return
         mask_u8 = undo_stack.pop()
@@ -176,12 +215,10 @@ def edit_contour_ui(
         _refresh()
 
     def apply_break() -> None:
-        """Break: remove the selected perimeter segment, without drawing a straight chord.
-
-        Conceptually: perimeter := perimeter \\ arc(i,j).
-        We approximate it by erasing a band along the chosen contour arc.
+        """Break: mark the arc between the two points as excluded from the counted perimeter.
+        Mask and area are NOT changed — only which contour segment is "break" (gray, not counted).
         """
-        nonlocal mask_u8, pending_i, pending_j
+        nonlocal pending_i, pending_j
         pts = _get_contour_points(mask_u8)
         if pts is None or pending_i is None or pending_j is None:
             return
@@ -190,39 +227,19 @@ def edit_contour_ui(
             _refresh()
             return
 
-        # Choose the shorter of the two arcs between the points as the one to remove
+        # Store the shorter arc (i,j) so it is excluded from perimeter; mask unchanged
         len_ij = _arc_length(pts, pending_i, pending_j)
         len_ji = _arc_length(pts, pending_j, pending_i)
-        remove_arc_idx = _arc_indices(
-            pts,
-            pending_i,
-            pending_j,
-            keep_shorter=(len_ji < len_ij),
-        )
-        arc_pts = pts[remove_arc_idx]
-
-        # Build a band mask along that arc and subtract it from the brain mask
-        band = np.zeros_like(mask_u8, dtype=np.uint8)
-        if len(arc_pts) >= 2:
-            for k in range(len(arc_pts) - 1):
-                x1, y1 = int(arc_pts[k, 0]), int(arc_pts[k, 1])
-                x2, y2 = int(arc_pts[k + 1, 0]), int(arc_pts[k + 1, 1])
-                cv2.line(band, (x1, y1), (x2, y2), 255, thickness=5)
-            # Slight dilation so the gap is clearly visible and survives contour extraction
-            k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-            band = cv2.dilate(band, k, iterations=1)
-
-        if (band > 0).any():
-            push_undo()
-            mask_u8 = cv2.bitwise_and(mask_u8, cv2.bitwise_not(band))
-            result_params["edited"] = True
-            result_params["correction_type"] = "break"
-
+        i, j = (pending_i, pending_j) if len_ij <= len_ji else (pending_j, pending_i)
+        break_arcs.append((i, j))
+        result_params["edited"] = True
+        result_params["correction_type"] = "break"
         pending_i = pending_j = None
         _refresh()
 
     def apply_bridge() -> None:
         nonlocal mask_u8, pending_i, pending_j, bridge_control
+        break_arcs.clear()  # contour changes, so stored break indices would be invalid
         pts = _get_contour_points(mask_u8)
         if pts is None or pending_i is None or pending_j is None:
             return
@@ -257,13 +274,18 @@ def edit_contour_ui(
         result_params["correction_type"] = "bridge"
         _refresh()
 
-    btns = ttk.Frame(ctrl)
-    btns.grid(row=4, column=0, sticky="ew", pady=(0, 8))
-    ttk.Button(btns, text="Break", command=lambda: set_mode("break")).grid(row=0, column=0, padx=(0, 4))
-    ttk.Button(btns, text="Missing", command=lambda: set_mode("missing")).grid(row=0, column=1)
-    ttk.Button(ctrl, text="Undo", command=do_undo).grid(row=5, column=0, sticky="ew", pady=(0, 4))
-    ttk.Button(ctrl, text="Apply break", command=apply_break).grid(row=6, column=0, sticky="ew", pady=(0, 2))
-    ttk.Button(ctrl, text="Apply bridge", command=apply_bridge).grid(row=7, column=0, sticky="ew", pady=(0, 8))
+    mode_btns = ctk.CTkFrame(ctrl, fg_color="transparent")
+    mode_btns.grid(row=4, column=0, sticky="ew", padx=14, pady=(0, 8))
+    mode_btns.columnconfigure(0, weight=1)
+    mode_btns.columnconfigure(1, weight=1)
+    btn_break = ctk.CTkButton(mode_btns, text="Break", command=lambda: set_mode("break"), width=100)
+    btn_break.grid(row=0, column=0, padx=(0, 6))
+    btn_missing = ctk.CTkButton(mode_btns, text="Missing", command=lambda: set_mode("missing"), width=100)
+    btn_missing.grid(row=0, column=1)
+
+    create_secondary_button(ctrl, text="Undo", command=do_undo).grid(row=5, column=0, sticky="ew", padx=14, pady=(0, 4))
+    create_secondary_button(ctrl, text="Apply break", command=apply_break).grid(row=6, column=0, sticky="ew", padx=14, pady=(0, 2))
+    create_secondary_button(ctrl, text="Apply bridge", command=apply_bridge).grid(row=7, column=0, sticky="ew", padx=14, pady=(0, 10))
 
     def do_accept() -> None:
         result_container[0] = (mask_u8 > 0).astype(brain_mask.dtype)
@@ -276,37 +298,85 @@ def edit_contour_ui(
         result_params["correction_type"] = "none"
         root.destroy()
 
-    ttk.Button(ctrl, text="Accept (continue)", command=do_accept).grid(row=8, column=0, sticky="ew", pady=(0, 4))
-    ttk.Button(ctrl, text="Skip (keep original)", command=do_skip).grid(row=9, column=0, sticky="ew")
+    bar = ctk.CTkFrame(ctrl, fg_color="transparent")
+    bar.grid(row=8, column=0, sticky="ew", padx=14, pady=(4, 14))
+    bar.columnconfigure(0, weight=1)
+    create_secondary_button(bar, text="Skip (keep original)", command=do_skip).grid(row=0, column=0, sticky="w")
+    create_primary_button(bar, text="Accept (continue)", command=do_accept).grid(row=0, column=1, sticky="e")
 
-    max_canvas_w, max_canvas_h = 900, 700
-    disp_scale = min(1.0, max_canvas_w / float(w), max_canvas_h / float(h))
-    disp_w = int(round(w * disp_scale))
-    disp_h = int(round(h * disp_scale))
-    canvas.configure(width=min(disp_w, max_canvas_w), height=min(disp_h, max_canvas_h))
+    def _get_canvas_size() -> tuple[int, int]:
+        cw = canvas_holder.winfo_width() or 800
+        ch = canvas_holder.winfo_height() or 600
+        if cw < 200:
+            cw = 800
+        if ch < 200:
+            ch = 600
+        return (cw, ch)
+
+    disp_scale = 1.0
+    disp_w = w
+    disp_h = h
     tk_img_ref: dict = {}
     canvas_img_id: list = []
 
     def _refresh() -> None:
+        nonlocal disp_scale, disp_w, disp_h
+        cw, ch = _get_canvas_size()
+        disp_scale = min(1.0, cw / float(w), ch / float(h))
+        disp_w = int(round(w * disp_scale))
+        disp_h = int(round(h * disp_scale))
+        canvas.configure(width=disp_w, height=disp_h)
+
         pts = _get_contour_points(mask_u8)
         vis = img_bgr.copy()
         # Dim background outside mask
         outside = (mask_u8 == 0)
         vis[outside] = (vis[outside] * 0.5 + np.array([20, 20, 20])).astype(np.uint8)
-        # Contour
+        # Contour: green = counted perimeter, gray = break (excluded from perimeter). Mask/area unchanged.
         if pts is not None:
-            cv2.polylines(vis, [pts], True, (0, 255, 0), 2)
-        # Pending Break: gray arc (that will be removed) + two points
-        if mode == "break" and pts is not None and pending_i is not None:
-            cv2.circle(vis, (int(pts[pending_i, 0]), int(pts[pending_i, 1])), 8, (0, 255, 255), 2)
-            if pending_j is not None:
-                cv2.circle(vis, (int(pts[pending_j, 0]), int(pts[pending_j, 1])), 8, (0, 255, 255), 2)
-                # Draw arc that will be removed (gray)
-                len_12 = _arc_length(pts, pending_i, pending_j)
-                len_21 = _arc_length(pts, pending_j, pending_i)
-                remove_arc = _arc_indices(pts, pending_i, pending_j, keep_shorter=(len_21 < len_12))
-                arc_pts = pts[remove_arc]
-                cv2.polylines(vis, [arc_pts], False, (128, 128, 128), 3)
+            n_pts = len(pts)
+            excluded: set[int] = set()
+            for (i, j) in break_arcs:
+                idx = _arc_indices(pts, i, j, keep_shorter=True)
+                excluded.update(idx.tolist())
+            # Preview: show pending arc as gray too (visual only; not in break_arcs yet)
+            if mode == "break" and pending_i is not None and pending_j is not None:
+                len_ij = _arc_length(pts, pending_i, pending_j)
+                len_ji = _arc_length(pts, pending_j, pending_i)
+                pending_excl = _arc_indices(pts, pending_i, pending_j, keep_shorter=(len_ji < len_ij))
+                excluded.update(pending_excl.tolist())
+            # Build runs of consecutive same-status indices (wrapping)
+            if excluded and n_pts > 0:
+                arr = [i in excluded for i in range(n_pts)]
+                runs: list[tuple[list[int], bool]] = []
+                used = [False] * n_pts
+                for start in range(n_pts):
+                    if used[start]:
+                        continue
+                    is_excl = arr[start]
+                    run = [start]
+                    used[start] = True
+                    j = start
+                    while True:
+                        nxt = (j + 1) % n_pts
+                        if nxt == start or arr[nxt] != is_excl:
+                            break
+                        run.append(nxt)
+                        used[nxt] = True
+                        j = nxt
+                    runs.append((run, is_excl))
+                for run, is_excl in runs:
+                    arc_pts = pts[run]
+                    color = (128, 128, 128) if is_excl else (0, 255, 0)
+                    thick = 4 if is_excl else 2
+                    cv2.polylines(vis, [arc_pts], False, color, thick)
+                if mode == "break" and pending_i is not None and pending_j is not None:
+                    cv2.circle(vis, (int(pts[pending_i, 0]), int(pts[pending_i, 1])), 10, (128, 128, 128), -1)
+                    cv2.circle(vis, (int(pts[pending_j, 0]), int(pts[pending_j, 1])), 10, (128, 128, 128), -1)
+            else:
+                cv2.polylines(vis, [pts], True, (0, 255, 0), 2)
+                if mode == "break" and pending_i is not None:
+                    cv2.circle(vis, (int(pts[pending_i, 0]), int(pts[pending_i, 1])), 8, (0, 255, 255), 2)
         # Pending Missing: endpoints + curve preview
         if mode == "missing" and pts is not None and pending_i is not None:
             cv2.circle(vis, (int(pts[pending_i, 0]), int(pts[pending_i, 1])), 8, (0, 255, 255), 2)
@@ -331,10 +401,19 @@ def edit_contour_ui(
             vis = cv2.resize(vis, (disp_w, disp_h), interpolation=cv2.INTER_AREA)
         vis_rgb = cv2.cvtColor(vis, cv2.COLOR_BGR2RGB)
         area = int((mask_u8 > 0).sum())
-        perim = 0.0
+        perim_full = 0.0
+        perim_break = 0.0
         if pts is not None and len(pts) > 1:
-            perim = float(cv2.arcLength(pts.astype(np.float32), True))
-        status_var.set(f"Area: {area} px  Perim: {perim:.1f}")
+            perim_full = float(cv2.arcLength(pts.astype(np.float32), True))
+            for (i, j) in break_arcs:
+                len_ij = _arc_length(pts, i, j)
+                len_ji = _arc_length(pts, j, i)
+                perim_break += min(len_ij, len_ji)
+        perim_active = perim_full - perim_break
+        if perim_break > 0:
+            status_var.set(f"Area: {area} px  Perim: {perim_active:.1f} (break: {perim_break:.1f})")
+        else:
+            status_var.set(f"Area: {area} px  Perim: {perim_active:.1f}")
         pil = Image.fromarray(vis_rgb)
         tk_img = ImageTk.PhotoImage(pil, master=canvas)
         tk_img_ref["img"] = tk_img
@@ -394,11 +473,15 @@ def edit_contour_ui(
         _refresh()
 
     canvas.bind("<Button-1>", on_click)
-    # Update Bezier control point only while left button is pressed (drag),
-    # so форма кривой не \"уплывает\", когда уводим мышь к кнопкам.
     canvas.bind("<B1-Motion>", on_motion)
 
+    def _on_holder_configure(_ev) -> None:
+        _refresh()
+
+    canvas_holder.bind("<Configure>", _on_holder_configure)
+
     set_mode("break")
+    root.update_idletasks()
     _refresh()
     root.wait_window()
 

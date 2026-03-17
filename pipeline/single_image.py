@@ -63,19 +63,19 @@ def process_one_image(
     brain_mask_outline, brain_outline_params = brain_outline_ui(img2_vis, init_mask=brain_mask_ds)
     brain_mask_step1 = (brain_mask_outline.astype(bool) & brain_mask_ds)
 
+    # If user checked "Non-complete contour", run contour editor as the next step (fix breaks/gaps).
+    if brain_outline_params.get("non_complete_contour", False):
+        edited_mask, edit_params = edit_contour_ui(brain_mask_step1.astype(np.uint8) * 255, img2_vis)
+        if edit_params.get("accepted", False):
+            brain_mask_step1 = edited_mask.astype(bool)
+        brain_outline_params["corrected"] = edit_params.get("edited", False)
+        brain_outline_params["correction_type"] = edit_params.get("correction_type", "none")
+
     # Step 1b: fill internal voids inside the fixed contour.
     # `fill_voids_ui` already constrains operations to the interior of the contour,
     # so here we only intersect with the original downsampled brain mask.
     brain_mask_filled_u8, fill_params = fill_voids_ui(img2_vis, brain_mask_step1.astype(np.uint8) * 255)
     brain_mask_final = (brain_mask_filled_u8.astype(bool) & brain_mask_ds)
-
-    if brain_outline_params.get("non_complete_contour", False):
-        # Call new contour editing UI
-        edited_mask, edit_params = edit_contour_ui(brain_mask_final, img2_vis)
-        if edit_params.get("accepted", False):
-            brain_mask_final = edited_mask.astype(bool)
-        brain_outline_params["corrected"] = edit_params.get("edited", False)
-        brain_outline_params["correction_type"] = edit_params.get("correction_type", "none")
 
     midline_params = midline_ui(img2_vis, brain_mask_final, pad=50)
     midline_params_orig = midline_params_to_orig(midline_params, sx, sy)

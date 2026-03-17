@@ -763,6 +763,7 @@ def brain_outline_ui(
     if bool(state["cancelled"]) or not bool(state["accepted"]):
         return np.zeros((h0, w0), dtype=bool), {
             "accepted": False,
+            "cancelled": bool(state["cancelled"]),
             "thr": int(var_thr.get()),
             "close": int(_odd(max(1, int(var_close.get())))),
             "open": int(_odd(max(1, int(var_open.get())))),
@@ -770,6 +771,7 @@ def brain_outline_ui(
             "scale": float(scale),
             "area_px": 0,
             "perim_px": 0.0,
+            "non_complete_contour": bool(var_non_complete_contour.get()),
         }
 
     last_ui = (state["m_u8"] > 0).astype(np.uint8)
@@ -798,6 +800,7 @@ def brain_outline_ui(
 
     params = {
         "accepted": True,
+        "cancelled": False,
         "thr": int(var_thr.get()),
         "close": int(_odd(max(1, int(var_close.get())))),
         "open": int(_odd(max(1, int(var_open.get())))),

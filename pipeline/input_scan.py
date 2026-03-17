@@ -4,6 +4,7 @@ import csv
 import os
 
 def load_processed(csv_path: Path) -> set[str]:
+    """Paths considered processed if at least one row has status OK (re-run after skip counts as processed)."""
     processed: set[str] = set()
     if not csv_path.exists():
         return processed
@@ -13,9 +14,11 @@ def load_processed(csv_path: Path) -> set[str]:
             for row in r:
                 if not row:
                     continue
-                p = row.get("image_path")
+                p = (row.get("image_path") or "").strip()
+                if not p:
+                    continue
                 st = (row.get("status") or "").strip().lower()
-                if p and st == "ok":
+                if st == "ok":
                     processed.add(str(Path(p).expanduser().resolve()))
     except Exception:
         return processed

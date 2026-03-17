@@ -271,6 +271,7 @@ def run_folder_and_selection_ui(
         return files
 
     def load_processed(csv_path: Path) -> set[str]:
+        """Paths considered processed if at least one row has status OK (so re-run after skip counts as processed)."""
         if not csv_path.exists():
             return set()
         out: set[str] = set()
@@ -278,10 +279,13 @@ def run_folder_and_selection_ui(
             with csv_path.open("r", encoding="utf-8", newline="") as f:
                 rd = csv.DictReader(f)
                 for row in rd:
-                    if (row.get("status") or "").strip().lower() == "ok":
-                        p = (row.get("image_path") or "").strip()
-                        if p:
-                            out.add(str(Path(p).expanduser().resolve()))
+                    p = (row.get("image_path") or "").strip()
+                    if not p:
+                        continue
+                    p_res = str(Path(p).expanduser().resolve())
+                    st = (row.get("status") or "").strip().lower()
+                    if st == "ok":
+                        out.add(p_res)
         except Exception:
             pass
         return out

@@ -14,6 +14,10 @@ from ui.file_selection.actions import browse_in, browse_out, apply_create_inside
 from core.validation import _is_subpath, _can_write_dir, _dir_is_empty, _write_results_meta
 from ui.file_selection.validation_ui import validate_paths_ui
 from ui.file_selection.settings import load_folder_choices, persist_folder_choices
+from ui.file_selection.reorganise_result import (
+    debug_print_results_head,
+    reorganise_results_to_ok_csv,
+)
 from ui.common.tk_after import make_on_destroy
 from ui.common.theme import setup_theme, get_base_font, get_small_muted_font
 from ui.common.widgets import (
@@ -169,10 +173,13 @@ def run_folder_and_selection_ui(
     run_bar = ctk.CTkFrame(main_frame, fg_color="transparent")
     run_bar.grid(row=3, column=0, sticky="ew", pady=(12, 10))
     run_bar.columnconfigure(0, weight=1)
+    run_bar.columnconfigure(1, weight=1)
     btn_cancel2 = create_secondary_button(run_bar, text="Cancel")
+    btn_reorganise = create_secondary_button(run_bar, text="Reorganise result")
     btn_run = create_primary_button(run_bar, text="Run selected", width=116, state="disabled")
     btn_cancel2.grid(row=0, column=0, sticky="w")
-    btn_run.grid(row=0, column=1, sticky="e")
+    btn_reorganise.grid(row=0, column=1, sticky="e", padx=(0, 8))
+    btn_run.grid(row=0, column=2, sticky="e")
 
     thumbs: list[ImageTk.PhotoImage] = []
     vars_sel: list[tk.BooleanVar] = []
@@ -369,6 +376,35 @@ def run_folder_and_selection_ui(
             json_module=_json,
         )
     )
+
+    def on_reorganise_result_debug() -> None:
+        out_dir = var_out.get().strip()
+        if not out_dir:
+            messagebox.showwarning("Reorganise result", "Please choose an output folder first.", parent=root)
+            return
+        ok_preview = debug_print_results_head(out_dir, rows=5)
+        ok_save, out_csv, rows_written = reorganise_results_to_ok_csv(out_dir)
+        if not ok_preview:
+            messagebox.showinfo(
+                "Reorganise result",
+                "results.csv was not found (or could not be read). See terminal output for details.",
+                parent=root,
+            )
+            return
+        if ok_save:
+            messagebox.showinfo(
+                "Reorganise result",
+                f"Saved reorganised file:\n{out_csv}\nRows: {rows_written}",
+                parent=root,
+            )
+        else:
+            messagebox.showwarning(
+                "Reorganise result",
+                "Could not save result_ok.csv. See terminal output for details.",
+                parent=root,
+            )
+
+    btn_reorganise.configure(command=on_reorganise_result_debug)
 
     def validate_paths(*_args) -> bool:
         return validate_paths_ui(

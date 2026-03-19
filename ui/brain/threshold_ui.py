@@ -10,6 +10,7 @@ from PIL import Image, ImageTk
 
 from ui.brain.mask_utils import _ensure_rgb_u8, _perimeter_px
 from ui.brain.mask_compute import compute_mask
+from ui.brain.mask_morphology import _largest_component
 
 @dataclass
 class BrainMaskUIContext:
@@ -195,6 +196,9 @@ def brain_mask_threshold_ui(
         "pad_extra": 0,
         "need_redraw": True,
         "accepted": False,
+        # extra UI state for manual splitting when two brains are too close
+        "mode": "cut_line",           # "cut_line" on by default; clicks = draw break line
+        "cut_line_pts": [],           # [(x, y)] for first click
     }
 
     # --- Tkinter UI window (cross-platform, consistent with other UIs) ---
@@ -215,9 +219,10 @@ def brain_mask_threshold_ui(
     ctrl = ttk.Frame(frm)
     ctrl.grid(row=0, column=1, padx=(12, 0), sticky="ns")
 
-    # Vars for sliders
+    # Vars for sliders and zoom
     var_thr = tk.IntVar(value=int(thr0))
     var_pad_extra = tk.IntVar(value=0)
+    var_zoom = tk.IntVar(value=100)
 
     def mark_dirty() -> None:
         state["need_redraw"] = True
@@ -313,20 +318,82 @@ def brain_mask_threshold_ui(
         state["pad_extra"] = 0
         mark_dirty()
 
+    def do_undo() -> None:
+        nonlocal cut_mask_u8
+        if not undo_stack:
+            return
+        cut_mask_u8 = undo_stack.pop()
+        mark_dirty()
+
     ttk.Button(btns, text="Accept (Enter)", command=do_accept).grid(row=0, column=0, sticky="ew", padx=(0, 6))
     ttk.Button(btns, text="Cancel (Esc)", command=do_cancel).grid(row=0, column=1, sticky="ew")
-    ttk.Button(btns, text="Reset (R)", command=do_reset).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+    ttk.Button(btns, text="Undo", command=do_undo).grid(row=1, column=0, sticky="ew", padx=(0, 6), pady=(6, 0))
+    ttk.Button(btns, text="Reset (R)", command=do_reset).grid(row=1, column=1, sticky="ew", pady=(6, 0))
+
+    def _on_wheel(ev) -> None:
+        if hasattr(ev, "delta"):
+            delta = ev.delta  # Windows / macOS
+        else:
+            delta = 120 if getattr(ev, "num", 5) == 4 else -120  # Linux Button-4/5
+        cur = var_zoom.get()
+        var_zoom.set(max(50, min(300, cur + (10 if delta > 0 else -10))))
+        mark_dirty()
+
+    canvas.bind("<MouseWheel>", _on_wheel)
+    canvas.bind("<Button-4>", _on_wheel)
+    canvas.bind("<Button-5>", _on_wheel)
 
     # Canvas image handling
     tk_img_ref: dict[str, ImageTk.PhotoImage | None] = {"img": None}
     canvas_img_id: list[int] = []
 
+    # Persistent "cut" mask in UI resolution (same HxW as gray_u8).
+    # We keep a strip of 255 values where the user draws cut lines and
+    # subtract it from the auto mask before upscaling to full resolution.
+    cut_mask_u8 = np.zeros_like(gray_u8, dtype=np.uint8)
+    undo_stack: list[np.ndarray] = []  # previous cut_mask_u8 states for Undo
+    MAX_UNDO = 50
+
     def _update_canvas() -> None:
+        """Recompute mask for current threshold, apply cut-mask, and redraw."""
+        nonlocal cut_mask_u8
+
         thr_eff = int(np.clip(state["thr"], 0, 255))
-        disp_rgb, mask_u8 = render(ctx, thr_eff, state["thr"], state["pad_extra"])
+        # Base rendering (auto mask, gray-out outside, contour)
+        base_disp_rgb, mask_u8 = render(ctx, thr_eff, state["thr"], state["pad_extra"])
+
+        # Apply accumulated cut lines (if any) as "holes" in the mask.
+        if cut_mask_u8 is not None and cut_mask_u8.shape == mask_u8.shape and int(cut_mask_u8.sum()) > 0:
+            mask_u8 = cv2.bitwise_and(mask_u8, cv2.bitwise_not(cut_mask_u8))
+
+        # Keep only the largest connected component; drop small blobs and the "other" brain after a cut.
+        mask_u8 = _largest_component(mask_u8)
+
+        # Rebuild visualization from the (possibly cut) mask so the user
+        # always sees the effective brain outline.
+        disp_rgb = ctx.rgb.copy()
+        m = (mask_u8 > 0).astype(np.uint8)
+        outside = m == 0
+        if np.any(outside):
+            disp_rgb[outside] = (220, 220, 220)
+
+        cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if cnts:
+            bgr = cv2.cvtColor(disp_rgb, cv2.COLOR_RGB2BGR)
+            cv2.drawContours(bgr, cnts, -1, (0, 0, 0), 5)
+            cv2.drawContours(bgr, cnts, -1, (255, 0, 255), 2)
+            disp_rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+
+        # Show first cut point (if any) as a small red circle.
+        cpts = state.get("cut_line_pts") or []
+        if len(cpts) == 1:
+            px, py = cpts[0]
+            cv2.circle(disp_rgb, (int(px), int(py)), 6, (255, 0, 0), 2)
+
+        # Save effective mask (after cuts) for upscaling at the end.
         mask_holder["mask"] = mask_u8.astype(np.uint8)
 
-        # metrics
+        # metrics from the effective mask
         area = int(mask_u8.sum())
         perim = float(_perimeter_px(mask_u8))
         metrics_var.set(
@@ -335,18 +402,72 @@ def brain_mask_threshold_ui(
             f"pad={pad}px (+{state['pad_extra']} px)   scale={scale:.3f}"
         )
 
-        pil = Image.fromarray(disp_rgb)
+        # Zoom: scale display image by var_zoom (50–300%)
+        h, w = disp_rgb.shape[:2]
+        zoom_pct = max(50, min(300, int(var_zoom.get())))
+        scale_zoom = zoom_pct / 100.0
+        state["_zoom_scale"] = scale_zoom
+        disp_w = max(1, int(round(w * scale_zoom)))
+        disp_h = max(1, int(round(h * scale_zoom)))
+        disp_zoomed = cv2.resize(disp_rgb, (disp_w, disp_h), interpolation=cv2.INTER_LINEAR)
+
+        pil = Image.fromarray(disp_zoomed)
         tk_img = ImageTk.PhotoImage(pil, master=canvas)
         tk_img_ref["img"] = tk_img
 
-        h, w = disp_rgb.shape[:2]
-        canvas.configure(width=min(w, 900), height=min(h, 700), scrollregion=(0, 0, w, h))
+        canvas.configure(width=min(disp_w, 900), height=min(disp_h, 700), scrollregion=(0, 0, disp_w, disp_h))
         if not canvas_img_id:
             canvas_img_id.append(canvas.create_image(0, 0, anchor="nw", image=tk_img))
         else:
             canvas.itemconfigure(canvas_img_id[0], image=tk_img)
 
     _tick_id: list = []
+
+    def _canvas_to_xy(ev) -> tuple[int, int] | None:
+        """Map canvas click coordinates to mask/display coordinates."""
+        if not canvas_img_id:
+            return None
+        cx = canvas.canvasx(ev.x)
+        cy = canvas.canvasy(ev.y)
+        zoom_scale = state.get("_zoom_scale", 1.0)
+        # Convert display coords to mask coords
+        ix = int(round(cx / zoom_scale))
+        iy = int(round(cy / zoom_scale))
+        h_m, w_m = mask_holder["mask"].shape[:2]
+        if ix < 0 or iy < 0 or ix >= w_m or iy >= h_m:
+            return None
+        return ix, iy
+
+    def _on_canvas_click(ev) -> None:
+        """Handle manual cut-line clicks when in cut_line mode."""
+        nonlocal cut_mask_u8
+        if state.get("mode") != "cut_line":
+            return
+        xy = _canvas_to_xy(ev)
+        if xy is None:
+            return
+        x, y = xy
+        pts = state.get("cut_line_pts") or []
+        if len(pts) == 0:
+            # First click – remember start point and show marker.
+            state["cut_line_pts"] = [(x, y)]
+            mark_dirty()
+            return
+
+        # Second click – draw a strip between the two points and add it to cut_mask_u8.
+        x1, y1 = pts[0]
+        thickness = 9  # match Brain outline cut-line visual width
+        if cut_mask_u8.shape != mask_holder["mask"].shape:
+            cut_mask_u8 = np.zeros_like(mask_holder["mask"], dtype=np.uint8)
+        # Push current cut mask for Undo before applying new line
+        undo_stack.append(cut_mask_u8.copy())
+        if len(undo_stack) > MAX_UNDO:
+            undo_stack.pop(0)
+        line_mask = np.zeros_like(cut_mask_u8, dtype=np.uint8)
+        cv2.line(line_mask, (int(x1), int(y1)), (int(x), int(y)), 255, thickness=thickness)
+        cut_mask_u8 = cv2.bitwise_or(cut_mask_u8, line_mask)
+        state["cut_line_pts"] = []
+        mark_dirty()
 
     def _tick() -> None:
         if state["need_redraw"]:
@@ -366,6 +487,7 @@ def brain_mask_threshold_ui(
             do_reset()
 
     root.bind("<Key>", _on_key)
+    canvas.bind("<Button-1>", _on_canvas_click)
 
     def _on_destroy(_ev=None) -> None:
         for aid in _tick_id:

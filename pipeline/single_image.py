@@ -174,6 +174,27 @@ def process_one_image(
 
     hip_left_area_px, hip_left_perim_px = _mask_area_perim(left_orig)
     hip_right_area_px, hip_right_perim_px = _mask_area_perim(right_orig)
+    brain_orig_u8 = cv2.resize(
+        (brain_mask_final.astype(np.uint8) * 255),
+        (orig_w, orig_h),
+        interpolation=cv2.INTER_NEAREST,
+    )
+    brain_area_px, brain_perim_px = _mask_area_perim(brain_orig_u8)
+
+    def _f(v: Any, default: float = 0.0) -> float:
+        try:
+            return float(v)
+        except Exception:
+            return float(default)
+
+    area_scale = float(sx) * float(sy)
+    perim_scale = (float(sx) + float(sy)) * 0.5
+    midline_area_left_px = int(round(_f(midline_params.get("area_left_px")) * area_scale))
+    midline_area_right_px = int(round(_f(midline_params.get("area_right_px")) * area_scale))
+    midline_perimeter_left_px = _f(midline_params.get("perimeter_left_px")) * perim_scale
+    midline_perimeter_right_px = _f(midline_params.get("perimeter_right_px")) * perim_scale
+    non_complete_contour = bool(brain_outline_params.get("non_complete_contour", False))
+    contour_corrected = bool(brain_outline_params.get("corrected", False))
 
     overlay = _overlay_masks_on_original(img, left_orig, right_orig, alpha=0.30)
 
@@ -189,8 +210,23 @@ def process_one_image(
 
     return {
         "image_path": str(image_path),
+        "img_name": image_path.name,
         "status": "ok",
+        "accepted": "ok",
         "overlay_path": str(overlay_path),
+        # Canonical metrics in ORIGINAL-image pixels
+        "brain_area_px": brain_area_px,
+        "brain_perim_px": brain_perim_px,
+        "midline_area_left_px": midline_area_left_px,
+        "midline_area_right_px": midline_area_right_px,
+        "midline_perimeter_left_px": midline_perimeter_left_px,
+        "midline_perimeter_right_px": midline_perimeter_right_px,
+        "non_complete_contour": non_complete_contour,
+        "contour_corrected": contour_corrected,
+        "hipp_area_left_px": hip_left_area_px,
+        "hipp_area_right_px": hip_right_area_px,
+        "hipp_perimeter_left_px": hip_left_perim_px,
+        "hipp_perimeter_right_px": hip_right_perim_px,
         "brain_outline_path": str(brain_outline_path),
         "brain_outline_params": brain_outline_params,
         "brain_mask_params": brain_mask_params,

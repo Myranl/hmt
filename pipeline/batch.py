@@ -16,86 +16,51 @@ def _iter_image_paths(root: Path, *, recursive: bool = True) -> list[Path]:
     return paths
 
 
-def _to_row(result: Any, *, image_path: Path) -> dict[str, Any]:
+def _to_rows(result: Any, *, image_path: Path) -> list[dict[str, Any]]:
     # Accept dict, dataclass, or any object with __dict__.
     if result is None:
-        return {"image_path": str(image_path), "status": "skipped"}
-
-    if isinstance(result, dict):
-        row = dict(result)
+        row0: dict[str, Any] = {"image_path": str(image_path), "status": "skip"}
+    elif isinstance(result, dict):
+        row0 = dict(result)
     elif is_dataclass(result):
-        row = asdict(result)
+        row0 = asdict(result)
     else:
-        row = dict(getattr(result, "__dict__", {}))
+        row0 = dict(getattr(result, "__dict__", {}))
 
-    row.setdefault("image_path", str(image_path))
-    row.setdefault("status", "ok")
+    row0.setdefault("image_path", str(image_path))
+    row0.setdefault("img_name", image_path.name)
+    st = str(row0.get("status", "ok")).strip().lower()
+    accepted = "skip" if st in ("skip", "skipped", "cancelled", "canceled") else ("error" if st == "error" else "ok")
 
-    # --- Flatten selected nested structures for CSV readability ---
-    def _jsonify(v: Any) -> str:
-        try:
-            return json.dumps(v, ensure_ascii=False)
-        except Exception:
-            return json.dumps(str(v), ensure_ascii=False)
+    # Canonical compact schema requested by user.
+    non_complete = str(row0.get("non_complete_contour", "")).strip().lower() in ("1", "true", "yes")
+    corrected = str(row0.get("contour_corrected", "")).strip().lower() in ("1", "true", "yes")
+    contour_version = "corrected" if non_complete else "single"
+    if non_complete and not corrected:
+        contour_version = "raw"
 
-    # Brain outline params
-    bop = row.get("brain_outline_params")
-    if isinstance(bop, dict):
-        row.setdefault("brain_thr", bop.get("thr"))
-        row.setdefault("brain_close", bop.get("close"))
-        row.setdefault("brain_open", bop.get("open"))
-        row.setdefault("brain_smooth", bop.get("smooth"))
-        row.setdefault("brain_scale", bop.get("scale"))
-        row.setdefault("brain_area_px", bop.get("area_px"))
-        row.setdefault("brain_perim_px", bop.get("perim_px"))
-        row.setdefault("brain_accepted", bop.get("accepted"))
-        row["brain_outline_params_json"] = _jsonify(bop)
-
-    # Midline params (hemispheres)
-    mlp = row.get("midline_params")
-    if isinstance(mlp, dict):
-        row.setdefault("midline_xy", mlp.get("midline_xy"))
-        row.setdefault("hemi_area_left_px", mlp.get("area_left_px"))
-        row.setdefault("hemi_area_right_px", mlp.get("area_right_px"))
-        row.setdefault("hemi_perim_left_px", mlp.get("perimeter_left_px"))
-        row.setdefault("hemi_perim_right_px", mlp.get("perimeter_right_px"))
-        row.setdefault("midline_crop_x0", mlp.get("crop_x0"))
-        row.setdefault("midline_crop_y0", mlp.get("crop_y0"))
-        row.setdefault("midline_crop_x1", mlp.get("crop_x1"))
-        row.setdefault("midline_crop_y1", mlp.get("crop_y1"))
-        row.setdefault("midline_pad", mlp.get("pad"))
-        row["midline_params_json"] = _jsonify(mlp)
-
-    # Hippocampus summary metrics
-    row.setdefault("hip_left_area_px", row.get("hip_left_area_px"))
-    row.setdefault("hip_left_perim_px", row.get("hip_left_perim_px"))
-    row.setdefault("hip_right_area_px", row.get("hip_right_area_px"))
-    row.setdefault("hip_right_perim_px", row.get("hip_right_perim_px"))
-
-    # ROI + UI parameters
-    roi = row.get("roi")
-    if roi is not None:
-        row["roi_json"] = _jsonify(roi)
-
-    ui_params = row.get("params")
-    if isinstance(ui_params, dict):
-        # promote the most useful ones
-        row.setdefault("ui_t1", ui_params.get("t1"))
-        row.setdefault("ui_t2", ui_params.get("t2"))
-        row.setdefault("ui_small_to_gray", ui_params.get("small_to_gray"))
-        row.setdefault("ui_small_N", ui_params.get("small_N"))
-        row.setdefault("ui_grid_on", ui_params.get("grid_on"))
-        row.setdefault("ui_grid_step", ui_params.get("grid_step"))
-        row.setdefault("ui_roi_x0", ui_params.get("x0"))
-        row.setdefault("ui_roi_y0", ui_params.get("y0"))
-        row.setdefault("ui_roi_x1", ui_params.get("x1"))
-        row.setdefault("ui_roi_y1", ui_params.get("y1"))
-        row["ui_params_json"] = _jsonify(ui_params)
-
-    # Keep the original nested dicts (optional), but make sure CSV doesn't explode
-    # by also providing stable JSON columns above.
-
-    return row
+    row: dict[str, Any] = {
+        "overlay_path": row0.get("overlay_path", ""),
+        "img_name": row0.get("img_name", image_path.name),
+        "accepted": accepted,
+        "contour_version": contour_version,
+        "brain_area_px": row0.get("brain_area_px", ""),
+        "brain_perim_px": row0.get("brain_perim_px", ""),
+        "midline_area_left_px": row0.get("midline_area_left_px", ""),
+        "midline_area_right_px": row0.get("midline_area_right_px", ""),
+        "midline_perimeter_left_px": row0.get("midline_perimeter_left_px", ""),
+        "midline_perimeter_right_px": row0.get("midline_perimeter_right_px", ""),
+        "non_complete_contour": row0.get("non_complete_contour", ""),
+        "hipp_area_left_px": row0.get("hipp_area_left_px", row0.get("hip_left_area_px", "")),
+        "hipp_area_right_px": row0.get("hipp_area_right_px", row0.get("hip_right_area_px", "")),
+        "hipp_perimeter_left_px": row0.get("hipp_perimeter_left_px", row0.get("hip_left_perim_px", "")),
+        "hipp_perimeter_right_px": row0.get("hipp_perimeter_right_px", row0.get("hip_right_perim_px", "")),
+    }
+    if non_complete and corrected:
+        row_raw = dict(row)
+        row_raw["contour_version"] = "raw"
+        return [row_raw, row]
+    return [row]
 
 def process_paths(
     img_paths: list[Path],
@@ -119,130 +84,129 @@ def process_paths(
     rows: list[dict[str, Any]] = []
 
     csv_path = out / "results.csv"
-    csv_fieldnames: list[str] = []
-    extra_col = "extra_json"
-
-    baseline = ["image_path", "status", "error", "error_type", "traceback"]
-
-    # Stable, readable schema (promoted fields from _to_row).
-    promoted = [
-        # brain outline
-        "brain_thr",
-        "brain_close",
-        "brain_open",
-        "brain_smooth",
-        "brain_scale",
+    csv_fieldnames: list[str] = [
+        "overlay_path",
+        "img_name",
+        "accepted",
+        "contour_version",
         "brain_area_px",
         "brain_perim_px",
-        "brain_accepted",
-        "brain_outline_params_json",
-
-        # hemispheres / midline
-        "midline_xy",
-        "hemi_area_left_px",
-        "hemi_area_right_px",
-        "hemi_perim_left_px",
-        "hemi_perim_right_px",
-        "midline_crop_x0",
-        "midline_crop_y0",
-        "midline_crop_x1",
-        "midline_crop_y1",
-        "midline_pad",
-        "midline_params_json",
-
-        # hippocampus metrics
-        "hip_left_area_px",
-        "hip_left_perim_px",
-        "hip_right_area_px",
-        "hip_right_perim_px",
-
-        # ROI + UI params
-        "roi_json",
-        "ui_t1",
-        "ui_t2",
-        "ui_small_to_gray",
-        "ui_small_N",
-        "ui_grid_on",
-        "ui_grid_step",
-        "ui_roi_x0",
-        "ui_roi_y0",
-        "ui_roi_x1",
-        "ui_roi_y1",
-        "ui_params_json",
+        "midline_area_left_px",
+        "midline_area_right_px",
+        "midline_perimeter_left_px",
+        "midline_perimeter_right_px",
+        "non_complete_contour",
+        "hipp_area_left_px",
+        "hipp_area_right_px",
+        "hipp_perimeter_left_px",
+        "hipp_perimeter_right_px",
     ]
-
-    # Keep extra_json last as a safety net for future/unknown keys.
-    csv_fieldnames = baseline + promoted + [extra_col]
 
     import csv
 
-    def _append_row(row: dict[str, Any]) -> None:
-        """Append one full row to CSV (open at end of image processing, write, close)."""
-        nonlocal csv_fieldnames
-        write_header = not csv_path.exists()
-        if not write_header and not csv_fieldnames:
+    def _coerce_scalar(v: Any) -> Any:
+        if v is None:
+            return ""
+        if isinstance(v, (dict, list, tuple)):
             try:
-                with csv_path.open("r", newline="", encoding="utf-8") as rf:
-                    r = csv.reader(rf)
-                    hdr = next(r, None)
-                    if hdr:
-                        csv_fieldnames = list(hdr)
+                return json.dumps(v, ensure_ascii=False)
             except Exception:
-                pass
-        with csv_path.open("a", newline="", encoding="utf-8") as f:
+                return str(v)
+        return v
+
+    def _normalize_to_schema(row: dict[str, Any]) -> dict[str, Any]:
+        return {k: _coerce_scalar(row.get(k, "")) for k in csv_fieldnames}
+
+    def _read_existing_rows() -> list[dict[str, Any]]:
+        if not csv_path.exists():
+            return []
+        rows_existing: list[dict[str, Any]] = []
+        try:
+            with csv_path.open("r", newline="", encoding="utf-8") as rf:
+                rdr = csv.reader(rf)
+                hdr = next(rdr, None)
+                if not hdr:
+                    return []
+                for raw_fields in rdr:
+                    if not raw_fields:
+                        continue
+                    fields = list(raw_fields)
+                    # Recover legacy malformed row written as one quoted CSV line.
+                    if len(fields) == 1 and "," in fields[0]:
+                        try:
+                            fields = next(csv.reader([fields[0]]))
+                        except Exception:
+                            pass
+                    rec = {k: (fields[i] if i < len(fields) else "") for i, k in enumerate(hdr)}
+                    rows_existing.append(_normalize_to_schema(rec))
+        except Exception:
+            return []
+        return rows_existing
+
+    def _append_row(row: dict[str, Any]) -> None:
+        """Upsert one row by overlay_path/img_name/contour_version and rewrite CSV."""
+        norm = _normalize_to_schema(dict(row))
+        base_key = str(norm.get("overlay_path", "")).strip() or str(norm.get("img_name", "")).strip()
+        key = f"{base_key}|{str(norm.get('contour_version', '')).strip()}"
+
+        rows_existing = _read_existing_rows()
+        replaced = False
+        if key:
+            for i, rec in enumerate(rows_existing):
+                rec_base = str(rec.get("overlay_path", "")).strip() or str(rec.get("img_name", "")).strip()
+                rec_key = f"{rec_base}|{str(rec.get('contour_version', '')).strip()}"
+                if rec_key == key:
+                    rows_existing[i] = norm
+                    replaced = True
+                    break
+        if not replaced:
+            rows_existing.append(norm)
+
+        with csv_path.open("w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=csv_fieldnames)
-            if write_header:
-                w.writeheader()
-            extra = {k: row[k] for k in row.keys() if k not in csv_fieldnames}
-            if extra:
-                prev = row.get(extra_col)
-                if prev:
-                    try:
-                        prev_obj = json.loads(prev) if isinstance(prev, str) else prev
-                    except Exception:
-                        prev_obj = {"prev": str(prev)}
-                    if isinstance(prev_obj, dict):
-                        prev_obj.update(extra)
-                        extra = prev_obj
-                row = dict(row)
-                row[extra_col] = json.dumps(extra, ensure_ascii=False)
-            safe_row = {k: row.get(k, "") for k in csv_fieldnames}
-            w.writerow(safe_row)
+            w.writeheader()
+            for rec in rows_existing:
+                w.writerow({k: rec.get(k, "") for k in csv_fieldnames})
             f.flush()
 
+    processed_images = 0
     try:
         for p in img_paths:
             try:
                 res = process_one_image(p, out_dir=out)
-                row = _to_row(res, image_path=p)
-            except Exception as e:
-                import traceback
-
-                tb_full = traceback.format_exc()
-                tb_lines = [s.strip() for s in tb_full.strip().split("\n") if s.strip()]
-                tb_short = " | ".join(tb_lines[-2:]) if len(tb_lines) >= 2 else tb_full
-                if len(tb_short) > 400:
-                    tb_short = tb_short[:397] + "..."
-
-                row = {
-                    "image_path": str(p),
-                    "status": "error",
-                    "error": repr(e),
-                    "error_type": type(e).__name__,
-                    "traceback": tb_short,
-                }
-
-            rows.append(row)
-            # Write at end of each image's processing (one open/write/close per image).
-            try:
-                _append_row(row)
+                rows_for_image = _to_rows(res, image_path=p)
             except Exception:
-                pass
+                rows_for_image = [{
+                    "img_name": p.name,
+                    "accepted": "error",
+                    "contour_version": "single",
+                    "overlay_path": "",
+                    "brain_area_px": "",
+                    "brain_perim_px": "",
+                    "midline_area_left_px": "",
+                    "midline_area_right_px": "",
+                    "midline_perimeter_left_px": "",
+                    "midline_perimeter_right_px": "",
+                    "non_complete_contour": "",
+                    "hipp_area_left_px": "",
+                    "hipp_area_right_px": "",
+                    "hipp_perimeter_left_px": "",
+                    "hipp_perimeter_right_px": "",
+                }]
+
+            processed_images += 1
+            for row in rows_for_image:
+                rows.append(row)
+                try:
+                    _append_row(row)
+                except Exception:
+                    pass
     finally:
         # If we exited mid-loop, append "skipped" for images we didn't process.
-        for p in img_paths[len(rows) :]:
+        for p in img_paths[processed_images:]:
             try:
-                _append_row(_to_row(None, image_path=p))
+                for row in _to_rows(None, image_path=p):
+                    _append_row(row)
             except Exception:
                 pass
 

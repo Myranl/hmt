@@ -311,7 +311,7 @@ def brain_outline_ui(
 
     # Actions (2x2)
     lf_actions = ttk.LabelFrame(ctrl, text="ACTIONS", padding=6)
-    lf_actions.grid(row=7, column=0, columnspan=2, sticky="ew", padx=14, pady=(0, 8))
+    lf_actions.grid(row=6, column=0, columnspan=2, sticky="ew", padx=14, pady=(0, 8))
     lf_actions.columnconfigure(0, weight=1)
     lf_actions.columnconfigure(1, weight=1)
     btns = ctk.CTkFrame(lf_actions, fg_color="transparent")
@@ -475,8 +475,8 @@ def brain_outline_ui(
                 red[:, :, 2] = 255
                 vis_bgr[p_mask] = cv2.addWeighted(vis_bgr[p_mask], 1.0 - 0.55, red[p_mask], 0.55, 0.0)
 
-        # zoom controlled only by mouse wheel (no visible slider)
-        zoom_factor = max(1.0, min(3.0, int(var_zoom.get()) / 100.0))
+        # zoom controlled only by mouse wheel (no visible slider), 50%–300%
+        zoom_factor = max(0.5, min(3.0, int(var_zoom.get()) / 100.0))
         effective_scale = disp_scale * zoom_factor
         state["effective_scale"] = effective_scale
         disp_w_zoomed = int(round(w * effective_scale))

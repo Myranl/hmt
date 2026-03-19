@@ -288,6 +288,7 @@ def fill_voids_ui(
     bar = ttk.LabelFrame(ctrl, text="ACTIONS", padding=6)
     bar.grid(row=5, column=0, sticky="ew", padx=14, pady=(0, 14))
     bar.columnconfigure(0, weight=1)
+    bar.columnconfigure(1, weight=1)
     create_secondary_button(bar, text="Skip", command=do_skip).grid(row=0, column=0, sticky="w")
     create_primary_button(bar, text="Accept", command=do_accept).grid(row=0, column=1, sticky="e")
 

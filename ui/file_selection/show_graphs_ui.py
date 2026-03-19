@@ -7,6 +7,7 @@ from tkinter import ttk, messagebox
 
 import numpy as np
 from ui.file_selection.reorganise_result import reorganise_results_to_ok_csv
+from ui.file_selection.settings import load_folder_choices, persist_graph_units_settings
 
 
 CANONICAL_HEADERS = [
@@ -137,6 +138,18 @@ def _extract_numeric(rows: list[dict[str, str]], col: str) -> np.ndarray:
 
 
 def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
+    settings = load_folder_choices()
+    init_convert = bool(settings.get("graphs_convert_enabled", False))
+    init_unit = str(settings.get("graphs_unit", "mm")).strip().lower()
+    if init_unit not in ("mm", "cm"):
+        init_unit = "mm"
+    try:
+        init_ppu = float(settings.get("graphs_pixels_per_unit", 100.0))
+        if not np.isfinite(init_ppu) or init_ppu <= 0:
+            init_ppu = 100.0
+    except Exception:
+        init_ppu = 100.0
+
     try:
         import matplotlib
         matplotlib.use("TkAgg")
@@ -176,7 +189,23 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     cmb_mode.set("Prefer corrected")
     cmb_mode.grid(row=1, column=0, sticky="ew", pady=(2, 10))
 
-    ttk.Label(left, text="Graph type").grid(row=2, column=0, sticky="w")
+    # Optional conversion from pixels to mm/cm for plotting/statistics.
+    conv = ttk.LabelFrame(left, text="Units", padding=6)
+    conv.grid(row=2, column=0, sticky="ew", pady=(0, 8))
+    conv.columnconfigure(1, weight=1)
+    var_convert_units = tk.BooleanVar(value=init_convert)
+    chk_convert = ttk.Checkbutton(conv, text="pxl to mm/cm", variable=var_convert_units)
+    chk_convert.grid(row=0, column=0, columnspan=2, sticky="w")
+    ttk.Label(conv, text="Unit").grid(row=1, column=0, sticky="w", pady=(4, 0))
+    var_unit = tk.StringVar(value=init_unit)
+    cmb_unit = ttk.Combobox(conv, state="readonly", values=["mm", "cm"], textvariable=var_unit, width=8)
+    cmb_unit.grid(row=1, column=1, sticky="w", pady=(4, 0))
+    ttk.Label(conv, text="Pixels per unit").grid(row=2, column=0, sticky="w", pady=(4, 0))
+    var_px_per_unit = tk.DoubleVar(value=init_ppu)
+    ent_px_per_unit = ttk.Entry(conv, textvariable=var_px_per_unit, width=12)
+    ent_px_per_unit.grid(row=2, column=1, sticky="w", pady=(4, 0))
+
+    ttk.Label(left, text="Graph type").grid(row=3, column=0, sticky="w")
     graph_map = {
         "Scatter": "scatter",
         "Histogram": "hist",
@@ -184,11 +213,11 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     }
     cmb_graph = ttk.Combobox(left, state="readonly", values=list(graph_map.keys()))
     cmb_graph.set("Scatter")
-    cmb_graph.grid(row=3, column=0, sticky="ew", pady=(2, 10))
+    cmb_graph.grid(row=4, column=0, sticky="ew", pady=(2, 10))
 
     # Dynamic options area: controls depend on graph type
     opts = ttk.Frame(left)
-    opts.grid(row=4, column=0, sticky="ew")
+    opts.grid(row=5, column=0, sticky="ew")
     opts.columnconfigure(0, weight=1)
 
     # Histogram options
@@ -226,9 +255,9 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     cmb_box_metric.set("Area")
 
     btn_draw = ttk.Button(left, text="Draw")
-    btn_draw.grid(row=5, column=0, sticky="ew", pady=(8, 4))
+    btn_draw.grid(row=6, column=0, sticky="ew", pady=(8, 4))
     btns_save = ttk.Frame(left)
-    btns_save.grid(row=6, column=0, sticky="ew", pady=(4, 4))
+    btns_save.grid(row=7, column=0, sticky="ew", pady=(4, 4))
     btns_save.columnconfigure(0, weight=1)
     btns_save.columnconfigure(1, weight=1)
     btn_save_current = ttk.Button(btns_save, text="Save current graph")
@@ -237,7 +266,8 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     btn_save_all.grid(row=0, column=1, sticky="ew", padx=(4, 0))
 
     stats_txt = tk.Text(left, width=40, height=24, wrap="word")
-    stats_txt.grid(row=7, column=0, sticky="nsew", pady=(8, 0))
+    stats_txt.grid(row=8, column=0, sticky="nsew", pady=(8, 0))
+    stats_txt.configure(state="disabled")
 
     # NOTE: In TkAgg, canvas pixel size ~= figsize * dpi.
     # Keep display DPI moderate so the UI doesn't become huge.
@@ -248,8 +278,23 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     canvas_widget.grid(row=1, column=0, sticky="nsew")
 
     def _set_stats(text: str) -> None:
+        stats_txt.configure(state="normal")
         stats_txt.delete("1.0", tk.END)
         stats_txt.insert(tk.END, text)
+        stats_txt.configure(state="disabled")
+
+    def _copy_stats_selection(_ev=None):
+        try:
+            sel = stats_txt.selection_get()
+        except Exception:
+            return "break"
+        try:
+            win.clipboard_clear()
+            win.clipboard_append(sel)
+            win.update_idletasks()
+        except Exception:
+            pass
+        return "break"
 
     def _corr(a: np.ndarray, b: np.ndarray) -> float:
         if a.size < 2 or b.size < 2:
@@ -257,6 +302,46 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
         if np.std(a) == 0 or np.std(b) == 0:
             return float("nan")
         return float(np.corrcoef(a, b)[0, 1])
+
+    def _pixels_per_unit() -> float:
+        try:
+            v = float(var_px_per_unit.get())
+            return v if v > 0 else 1.0
+        except Exception:
+            return 1.0
+
+    def _persist_units_settings() -> None:
+        persist_graph_units_settings(
+            convert_enabled=bool(var_convert_units.get()),
+            unit=var_unit.get().strip().lower() or "mm",
+            pixels_per_unit=_pixels_per_unit(),
+        )
+
+    def _col_kind(col: str) -> str:
+        c = col.lower()
+        if "area" in c:
+            return "area"
+        if "perim" in c:
+            return "perimeter"
+        return "linear"
+
+    def _convert_vals(vals: np.ndarray, col: str) -> np.ndarray:
+        if not bool(var_convert_units.get()):
+            return vals
+        k = _col_kind(col)
+        ppu = _pixels_per_unit()
+        if k == "area":
+            return vals / (ppu * ppu)
+        return vals / ppu
+
+    def _label(col: str) -> str:
+        if not bool(var_convert_units.get()):
+            return col
+        unit = var_unit.get().strip() or "unit"
+        k = _col_kind(col)
+        if k == "area":
+            return f"{col} ({unit}^2)"
+        return f"{col} ({unit})"
 
     def _show_hist_opts() -> None:
         lbl_hist_col.grid(row=0, column=0, sticky="w")
@@ -342,6 +427,8 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
             else:
                 x = np.array([p[0] for p in pairs], dtype=float)
                 y = np.array([p[1] for p in pairs], dtype=float)
+                x = _convert_vals(x, xcol)
+                y = _convert_vals(y, ycol)
                 n = x.size
                 ax.scatter(x, y, alpha=0.75, s=40, linewidths=0.3)
                 if bool(var_sc_refline.get()):
@@ -350,13 +437,13 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
                     hi = min(float(np.max(x)), float(np.max(y)))
                     if hi > lo:
                         ax.plot([lo, hi], [lo, hi], "--", linewidth=1.2, alpha=0.75)
-                ax.set_xlabel(xcol)
-                ax.set_ylabel(ycol)
-                ax.set_title(f"Scatter: {xcol} vs {ycol}")
+                ax.set_xlabel(_label(xcol))
+                ax.set_ylabel(_label(ycol))
+                ax.set_title(f"Scatter: {_label(xcol)} vs {_label(ycol)}")
                 _set_stats(
-                    _stats_text(x, f"X ({xcol})")
+                    _stats_text(x, f"X ({_label(xcol)})")
                     + "\n\n"
-                    + _stats_text(y, f"Y ({ycol})")
+                    + _stats_text(y, f"Y ({_label(ycol)})")
                     + f"\n\nN pairs={n}\ncorr={_corr(x, y):.4g}\nmean(Y-X)={float(np.mean(y-x)):.4g}"
                 )
 
@@ -372,33 +459,34 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
                 rcol = "midline_area_right_px" if metric == "area" else "midline_perimeter_right_px"
                 title = f"Midline {metric}: left vs right"
 
-            lvals = _extract_numeric(r, lcol)
-            rvals = _extract_numeric(r, rcol)
+            lvals = _convert_vals(_extract_numeric(r, lcol), lcol)
+            rvals = _convert_vals(_extract_numeric(r, rcol), rcol)
             if lvals.size == 0 and rvals.size == 0:
                 _set_stats(f"No valid values for boxplot:\n{lcol}\n{rcol}")
             else:
                 ax.boxplot([lvals, rvals], labels=["Left", "Right"], showfliers=True)
-                ax.set_title(title)
-                ax.set_ylabel(metric)
+                ax.set_title(title + (f" [{var_unit.get()}]" if bool(var_convert_units.get()) else " [px]"))
+                y_unit = f"{var_unit.get()}^2" if _col_kind(lcol) == "area" and bool(var_convert_units.get()) else (var_unit.get() if bool(var_convert_units.get()) else "px")
+                ax.set_ylabel(y_unit)
                 _set_stats(
-                    _stats_text(lvals, f"Left ({lcol})")
+                    _stats_text(lvals, f"Left ({_label(lcol)})")
                     + "\n\n"
-                    + _stats_text(rvals, f"Right ({rcol})")
+                    + _stats_text(rvals, f"Right ({_label(rcol)})")
                 )
 
         else:  # histogram
             col = cmb_hist_col.get().strip()
-            vals = _extract_numeric(r, col)
+            vals = _convert_vals(_extract_numeric(r, col), col)
             bins = var_bins.get() if isinstance(var_bins.get(), int) else 30
             bins = max(2, min(400, int(bins)))
             if vals.size == 0:
                 _set_stats(f"No valid values for {col}.")
             else:
                 ax.hist(vals, bins=bins, alpha=0.8, edgecolor="black")
-                ax.set_title(f"Histogram: {col}")
-                ax.set_xlabel(col)
+                ax.set_title(f"Histogram: {_label(col)}")
+                ax.set_xlabel(_label(col))
                 ax.set_ylabel("Count")
-                _set_stats(_stats_text(vals, f"{col}"))
+                _set_stats(_stats_text(vals, f"{_label(col)}"))
 
         ax.grid(True, alpha=0.2)
         fig.tight_layout()
@@ -545,6 +633,13 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     cmb_sc_x.bind("<<ComboboxSelected>>", lambda _e: _draw())
     cmb_sc_y.bind("<<ComboboxSelected>>", lambda _e: _draw())
     chk_sc_refline.configure(command=_draw)
+    chk_convert.configure(command=lambda: (_persist_units_settings(), _draw()))
+    cmb_unit.bind("<<ComboboxSelected>>", lambda _e: (_persist_units_settings(), _draw()))
+    ent_px_per_unit.bind("<Return>", lambda _e: (_persist_units_settings(), _draw()))
+    ent_px_per_unit.bind("<FocusOut>", lambda _e: (_persist_units_settings(), _draw()))
+    # Explicit copy bindings for macOS/Windows/Linux.
+    stats_txt.bind("<Command-c>", _copy_stats_selection)
+    stats_txt.bind("<Control-c>", _copy_stats_selection)
     cmb_box_group.bind("<<ComboboxSelected>>", lambda _e: _draw())
     cmb_box_metric.bind("<<ComboboxSelected>>", lambda _e: _draw())
     _refresh_dynamic_controls()

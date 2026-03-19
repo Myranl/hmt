@@ -18,6 +18,7 @@ from ui.file_selection.reorganise_result import (
     debug_print_results_head,
     reorganise_results_to_ok_csv,
 )
+from ui.file_selection.show_graphs_ui import show_graphs_ui
 from ui.common.tk_after import make_on_destroy
 from ui.common.theme import setup_theme, get_base_font, get_small_muted_font
 from ui.common.widgets import (
@@ -174,12 +175,15 @@ def run_folder_and_selection_ui(
     run_bar.grid(row=3, column=0, sticky="ew", pady=(12, 10))
     run_bar.columnconfigure(0, weight=1)
     run_bar.columnconfigure(1, weight=1)
+    run_bar.columnconfigure(2, weight=1)
     btn_cancel2 = create_secondary_button(run_bar, text="Cancel")
     btn_reorganise = create_secondary_button(run_bar, text="Reorganise result")
+    btn_show_graphs = create_secondary_button(run_bar, text="Show graphs")
     btn_run = create_primary_button(run_bar, text="Run selected", width=116, state="disabled")
     btn_cancel2.grid(row=0, column=0, sticky="w")
     btn_reorganise.grid(row=0, column=1, sticky="e", padx=(0, 8))
-    btn_run.grid(row=0, column=2, sticky="e")
+    btn_show_graphs.grid(row=0, column=2, sticky="e", padx=(0, 8))
+    btn_run.grid(row=0, column=3, sticky="e")
 
     thumbs: list[ImageTk.PhotoImage] = []
     vars_sel: list[tk.BooleanVar] = []
@@ -405,6 +409,15 @@ def run_folder_and_selection_ui(
             )
 
     btn_reorganise.configure(command=on_reorganise_result_debug)
+
+    def on_show_graphs() -> None:
+        out_dir = var_out.get().strip()
+        if not out_dir:
+            messagebox.showwarning("Show graphs", "Please choose an output folder first.", parent=root)
+            return
+        show_graphs_ui(root, out_dir)
+
+    btn_show_graphs.configure(command=on_show_graphs)
 
     def validate_paths(*_args) -> bool:
         return validate_paths_ui(

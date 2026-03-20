@@ -17,7 +17,12 @@ from skimage import exposure
 from skimage.filters import gaussian
 
 
-def to_photo_u8(gray: np.ndarray, *, max_side: int = 700) -> ImageTk.PhotoImage:
+def to_photo_u8(
+    gray: np.ndarray,
+    *,
+    max_side: int = 700,
+    master: tk.Misc | None = None,
+) -> ImageTk.PhotoImage:
     """Convert a 2D image to a Tk PhotoImage (grayscale), with optional downscaling for display."""
     if gray.dtype != np.uint8:
         g = np.clip(gray, 0.0, 1.0)
@@ -31,6 +36,8 @@ def to_photo_u8(gray: np.ndarray, *, max_side: int = 700) -> ImageTk.PhotoImage:
     if s > max_side:
         scale = max_side / float(s)
         im = im.resize((int(round(w * scale)), int(round(h * scale))), resample=Image.Resampling.NEAREST)
+    if master is not None:
+        return ImageTk.PhotoImage(im, master=master)
     return ImageTk.PhotoImage(im)
 
 

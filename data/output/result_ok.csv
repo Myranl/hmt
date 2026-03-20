@@ -1,0 +1,2 @@
+overlay_path,img_name,accepted,contour_version,brain_area_px,brain_perim_px,midline_area_left_px,midline_area_right_px,midline_perimeter_left_px,midline_perimeter_right_px,non_complete_contour,hipp_area_left_px,hipp_area_right_px,hipp_perimeter_left_px,hipp_perimeter_right_px
+/Users/kseniialavrova/PycharmProjects/HMT/data/output/TileScan 001_X12_1__hippocampus_overlay.png,TileScan 001_X12_1.tif,ok,single,21098404,31081.756276726723,10815264,10227272,15635.694437265396,16419.188946723938,False,649600,518600,4090.670258283615,3474.9890189170837

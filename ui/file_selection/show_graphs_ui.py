@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 import csv
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -58,6 +59,20 @@ def _to_float(v: object) -> float:
         return float(v)
     except Exception:
         return float("nan")
+
+
+def _short_img_label(row: dict[str, str]) -> str:
+    """Basename for tooltips: prefer img_name, then image_path, then overlay_path."""
+    name = str(row.get("img_name", "")).strip()
+    if name:
+        return Path(name).name
+    ip = str(row.get("image_path", "")).strip()
+    if ip:
+        return Path(ip).name
+    op = str(row.get("overlay_path", "")).strip()
+    if op:
+        return Path(op).name
+    return "?"
 
 
 def _read_rows(out_dir: str) -> list[dict[str, str]]:
@@ -280,6 +295,31 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     canvas_widget = canvas.get_tk_widget()
     canvas_widget.grid(row=1, column=0, sticky="nsew")
 
+    # Scatter hover: mpl_connect id + data (cleared on each _draw)
+    scatter_hover_state: dict[str, Any] = {
+        "cid": None,
+        "sc": None,
+        "annot": None,
+        "xs": None,
+        "ys": None,
+        "labels": None,
+        "active": False,
+    }
+
+    def _scatter_hover_teardown() -> None:
+        if scatter_hover_state.get("cid") is not None:
+            try:
+                canvas.mpl_disconnect(scatter_hover_state["cid"])
+            except Exception:
+                pass
+            scatter_hover_state["cid"] = None
+        scatter_hover_state["active"] = False
+        scatter_hover_state["sc"] = None
+        scatter_hover_state["annot"] = None
+        scatter_hover_state["xs"] = None
+        scatter_hover_state["ys"] = None
+        scatter_hover_state["labels"] = None
+
     def _set_stats(text: str) -> None:
         stats_txt.configure(state="normal")
         stats_txt.delete("1.0", tk.END)
@@ -412,12 +452,14 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
         # Always refresh normalized dataset before plotting.
         ok_save, _out_csv, _rows_written = reorganise_results_to_ok_csv(out_dir)
         if not ok_save:
+            _scatter_hover_teardown()
             _set_stats("Failed to reorganise results before plotting.\nCheck terminal output.")
             ax.clear()
             canvas.draw_idle()
             return
         rows = _read_rows(out_dir)
         if not rows:
+            _scatter_hover_teardown()
             _set_stats("No rows found after reorganisation.")
             ax.clear()
             canvas.draw_idle()
@@ -425,6 +467,7 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
 
         mode_key = mode_map.get(cmb_mode.get(), "prefer_corrected")
         graph_key = graph_map.get(cmb_graph.get(), "scatter")
+        _scatter_hover_teardown()
         r = _apply_dataset_mode(rows, mode_key)
         ax.clear()
 
@@ -432,11 +475,13 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
             xcol = cmb_sc_x.get().strip()
             ycol = cmb_sc_y.get().strip()
             pairs: list[tuple[float, float]] = []
+            labels_sc: list[str] = []
             for row in r:
                 xv = _to_float(row.get(xcol, ""))
                 yv = _to_float(row.get(ycol, ""))
                 if np.isfinite(xv) and np.isfinite(yv):
                     pairs.append((xv, yv))
+                    labels_sc.append(_short_img_label(row))
             if not pairs:
                 _set_stats(f"No valid paired values for scatter:\nX={xcol}\nY={ycol}")
             else:
@@ -445,7 +490,104 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
                 x = _convert_vals(x, xcol)
                 y = _convert_vals(y, ycol)
                 n = x.size
-                ax.scatter(x, y, alpha=0.75, s=40, linewidths=0.3)
+                sc = ax.scatter(
+                    x,
+                    y,
+                    alpha=0.75,
+                    s=40,
+                    linewidths=0.3,
+                    picker=True,
+                    pickradius=12,
+                )
+                annot = ax.annotate(
+                    "",
+                    xy=(0.0, 0.0),
+                    xytext=(12, 12),
+                    textcoords="offset points",
+                    fontsize=9,
+                    horizontalalignment="left",
+                    verticalalignment="bottom",
+                    bbox=dict(boxstyle="round,pad=0.35", facecolor="white", edgecolor="gray", alpha=0.92),
+                    arrowprops=dict(arrowstyle="-", color="gray", linewidth=0.8),
+                )
+                annot.set_clip_on(False)
+                annot.set_visible(False)
+
+                def _scatter_smart_label_placement(xd: float, yd: float, text: str) -> None:
+                    """Offset + ha/va so the box stays inside the axes when possible."""
+                    xmin, xmax, ymin, ymax = ax.axis()
+                    xr = float(xmax - xmin)
+                    yr = float(ymax - ymin)
+                    if not np.isfinite(xr) or xr <= 0:
+                        xr = 1.0
+                    if not np.isfinite(yr) or yr <= 0:
+                        yr = 1.0
+                    rx = float(np.clip((xd - xmin) / xr, 0.0, 1.0))
+                    ry = float(np.clip((yd - ymin) / yr, 0.0, 1.0))
+                    edge = 0.18
+                    pad = 12.0
+                    est_w_pt = max(44.0, min(190.0, 5.5 * max(len(text), 6)))
+                    if rx >= 1.0 - edge:
+                        dx, ha = -est_w_pt, "right"
+                    elif rx <= edge:
+                        dx, ha = pad, "left"
+                    else:
+                        dx, ha = (pad, "left") if rx < 0.5 else (-est_w_pt, "right")
+                    if ry >= 1.0 - edge:
+                        dy, va = -pad, "top"
+                    elif ry <= edge:
+                        dy, va = pad, "bottom"
+                    else:
+                        dy, va = (pad, "bottom") if ry < 0.5 else (-pad, "top")
+                    annot.xytext = (dx, dy)
+                    try:
+                        annot.set_horizontalalignment(ha)
+                        annot.set_verticalalignment(va)
+                    except Exception:
+                        pass
+
+                def _on_scatter_hover(event) -> None:
+                    if not scatter_hover_state.get("active"):
+                        return
+                    ann = scatter_hover_state.get("annot")
+                    sc_art = scatter_hover_state.get("sc")
+                    xs = scatter_hover_state.get("xs")
+                    ys = scatter_hover_state.get("ys")
+                    lbs = scatter_hover_state.get("labels")
+                    if ann is None or sc_art is None or xs is None or ys is None or lbs is None:
+                        return
+                    if event.inaxes != ax:
+                        if ann.get_visible():
+                            ann.set_visible(False)
+                            canvas.draw_idle()
+                        return
+                    try:
+                        contained, props = sc_art.contains(event)
+                    except Exception:
+                        contained, props = False, {}
+                    if contained and props is not None:
+                        ind = props.get("ind")
+                        if ind is not None and len(ind) > 0:
+                            i = int(ind[0])
+                            if 0 <= i < len(lbs):
+                                txt = str(lbs[i])
+                                ann.xy = (float(xs[i]), float(ys[i]))
+                                ann.set_text(txt)
+                                _scatter_smart_label_placement(float(xs[i]), float(ys[i]), txt)
+                                ann.set_visible(True)
+                                canvas.draw_idle()
+                                return
+                    if ann.get_visible():
+                        ann.set_visible(False)
+                        canvas.draw_idle()
+
+                scatter_hover_state["active"] = True
+                scatter_hover_state["sc"] = sc
+                scatter_hover_state["annot"] = annot
+                scatter_hover_state["xs"] = x
+                scatter_hover_state["ys"] = y
+                scatter_hover_state["labels"] = labels_sc
+                scatter_hover_state["cid"] = canvas.mpl_connect("motion_notify_event", _on_scatter_hover)
                 if bool(var_sc_refline.get()):
                     # Draw y=x only within overlapping X/Y range.
                     lo = max(float(np.min(x)), float(np.min(y)))

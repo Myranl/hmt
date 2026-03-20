@@ -4,6 +4,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox
 
 from config import RESULTS_SCHEMA_VERSION
+from pipeline.input_scan import ProcessedIndex
 from core.validation import _dir_is_empty, _is_subpath
 
 
@@ -195,6 +196,11 @@ def make_on_ok(
         csv_path = csv_default
         write_results_meta_fn(out_path, schema_version=RESULTS_SCHEMA_VERSION)
         processed = load_processed_fn(csv_path)
+        if not isinstance(processed, ProcessedIndex):
+            processed = ProcessedIndex(
+                frozenset(str(Path(x).expanduser().resolve()) for x in processed),
+                frozenset(),
+            )
 
         # Disable folder selection while loading
         set_enabled([btn_browse_in, btn_browse_out, chk_create_inside, btn_ok], False)

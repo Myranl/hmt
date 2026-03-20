@@ -40,6 +40,7 @@ def _to_rows(result: Any, *, image_path: Path) -> list[dict[str, Any]]:
         contour_version = "raw"
 
     row: dict[str, Any] = {
+        "image_path": str(row0.get("image_path", image_path)),
         "overlay_path": row0.get("overlay_path", ""),
         "img_name": row0.get("img_name", image_path.name),
         "accepted": accepted,
@@ -85,6 +86,7 @@ def process_paths(
 
     csv_path = out / "results.csv"
     csv_fieldnames: list[str] = [
+        "image_path",
         "overlay_path",
         "img_name",
         "accepted",
@@ -177,6 +179,7 @@ def process_paths(
                 rows_for_image = _to_rows(res, image_path=p)
             except Exception:
                 rows_for_image = [{
+                    "image_path": str(p),
                     "img_name": p.name,
                     "accepted": "error",
                     "contour_version": "single",

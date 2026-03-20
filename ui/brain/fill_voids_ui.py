@@ -15,7 +15,11 @@ from ui.common.widgets import (
     create_secondary_button,
     create_status_label,
 )
-from ui.brain.mask_morphology import _fill_holes, remove_voids_inside_mask
+from ui.brain.mask_morphology import (
+    _fill_holes,
+    _outline_background_gray_range,
+    remove_voids_inside_mask,
+)
 
 
 def fill_voids_ui(
@@ -415,11 +419,17 @@ def fill_voids_ui(
             edit_add_u8[comp] = 255
             edit_del_u8[comp] = 0
         else:  # erase_void – whole connected component (bright region)
+            # Threshold from void grays (like before). After Brain outline + W, "voids" in mask_base
+            # can be uniformly white → p70≈255 and erase_void stops working; no contour-distance check here.
             bg_vals = gray[(interior_allowed > 0) & (mask_base == 0)]
             if bg_vals.size > 0:
                 thr_bright = int(np.percentile(bg_vals, 70))
+                if thr_bright >= 240:
+                    low_ring, _ = _outline_background_gray_range(m, gray)
+                    thr_bright = int(max(0, min(255, low_ring)))
             else:
-                thr_bright = 200
+                low_ring, _ = _outline_background_gray_range(m, gray)
+                thr_bright = int(max(0, min(255, low_ring)))
             target_binary = ((m > 0) & (interior_allowed > 0) & (gray >= thr_bright)).astype(np.uint8)
             if target_binary[y, x] == 0:
                 return

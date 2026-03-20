@@ -142,6 +142,95 @@ def white_component_at(
     return _connected_component_from_seed(bright, x, y, search_r=15)
 
 
+def bright_blob_erase_component_voids_style(
+    m_u8: np.ndarray,
+    gray_u8: np.ndarray,
+    x: int,
+    y: int,
+    *,
+    mask_base_u8: np.ndarray | None = None,
+    require_contour_click: bool = False,
+    contour_band_px: int = 12,
+    component_must_touch_boundary: bool = False,
+    boundary_tolerance_px: int = 15,
+) -> np.ndarray:
+    """Whole connected bright region inside the mask (same rule as ``fill_voids_ui`` erase-void).
+
+    Brightness cutoff uses the 70th percentile of grayscale in **voids** of ``mask_base``
+    (holes inside ``_fill_holes(mask_base)``), matching ``fill_voids_ui``. If there are no voids,
+    uses the outline ring (same idea as ``white_component_at``) so the threshold is not stuck
+    near 255 when the background outside the mask is uniformly white.
+
+    If ``require_contour_click`` is True, the click must lie in a dilated band around the
+    current mask boundary (legacy behaviour).
+
+    If ``component_must_touch_boundary`` is True (brain outline), the click may be anywhere on
+    a bright pixel inside the mask; the **entire** bright component is removed only if it
+    intersects a zone of width ``boundary_tolerance_px`` around the outer mask contour
+    (boundary between mask and background).
+
+    For that outline mode, brightness threshold **always** uses the outline ring (not void
+    percentiles). Otherwise, after the first W-click the carved region becomes an interior
+    void full of white pixels; p70(void) jumps to ~255 and every later click fails.
+    """
+    m255 = (m_u8 > 0).astype(np.uint8) * 255
+    h, w = m255.shape[:2]
+    x = int(np.clip(x, 0, w - 1))
+    y = int(np.clip(y, 0, h - 1))
+
+    base255 = (mask_base_u8 > 0).astype(np.uint8) * 255 if mask_base_u8 is not None else m255.copy()
+    interior = _fill_holes(base255.copy(), binary=False)
+    void_seed = ((interior > 0) & (base255 == 0)).astype(bool)
+    if component_must_touch_boundary:
+        low_ring, _high_ring = _outline_background_gray_range(m255, gray_u8)
+        thr_bright = int(max(0, min(255, low_ring)))
+    elif np.any(void_seed):
+        bg_vals = gray_u8[void_seed]
+        if bg_vals.size > 0:
+            thr_bright = int(np.percentile(bg_vals, 70))
+        else:
+            thr_bright = 200
+    else:
+        low_ring, _high_ring = _outline_background_gray_range(m255, gray_u8)
+        thr_bright = int(max(0, min(255, low_ring)))
+
+    interior_bin = interior > 0
+    target_bool = (m255 > 0) & interior_bin & (gray_u8 >= thr_bright)
+
+    if require_contour_click:
+        if int(m255.sum()) == 0:
+            return np.zeros_like(m255)
+        k3 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        edge = cv2.bitwise_and(m255, cv2.bitwise_not(cv2.erode(m255, k3)))
+        br = max(1, int(contour_band_px))
+        kb = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * br + 1, 2 * br + 1))
+        band = cv2.dilate(edge, kb)
+        if band[y, x] == 0:
+            return np.zeros_like(m255)
+
+    target = target_bool.astype(np.uint8) * 255
+    num, labels = cv2.connectedComponents(target, connectivity=4)
+    if num <= 1:
+        return np.zeros_like(m255)
+    lbl = int(labels[y, x])
+    if lbl == 0:
+        return np.zeros_like(m255)
+    cc = ((labels == lbl).astype(np.uint8)) * 255
+
+    if component_must_touch_boundary:
+        if int(m255.sum()) == 0:
+            return np.zeros_like(m255)
+        k3 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        boundary = cv2.bitwise_and(m255, cv2.bitwise_not(cv2.erode(m255, k3)))
+        tol = max(1, int(boundary_tolerance_px))
+        kt = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * tol + 1, 2 * tol + 1))
+        contour_zone = cv2.dilate(boundary, kt)
+        if not np.any(np.logical_and(cc > 0, contour_zone > 0)):
+            return np.zeros_like(m255)
+
+    return cc
+
+
 def _convex_hull_mask(mask_u8: np.ndarray) -> np.ndarray:
     """Return filled convex hull for a 0/255 mask as 0/255."""
     m = (mask_u8 > 0).astype(np.uint8)

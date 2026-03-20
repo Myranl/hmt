@@ -1,9 +1,11 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 import tkinter as tk
 from tkinter import ttk
+
+from pipeline.input_scan import ProcessedIndex
 
 
 ThumbMaker = Callable[[Path], "tk.PhotoImage | None"]
@@ -24,7 +26,7 @@ class ListViewCtx:
 
     # dynamic data
     img_paths: list[Path]
-    processed: set[str]
+    processed: ProcessedIndex
 
     # row state
     thumbs: list[tk.PhotoImage]
@@ -62,19 +64,22 @@ def init_list_view(
         var_show_processed=var_show_processed,
         after_ids=after_ids,
         img_paths=[],
-        processed=set(),
+        processed=ProcessedIndex(),
         thumbs=[],
         vars_sel=[],
         meta=[],
     )
 
 
-def set_data(*, img_paths: list[Path], processed: set[str]) -> None:
+def set_data(*, img_paths: list[Path], processed: Union[ProcessedIndex, set[str], frozenset[str]]) -> None:
     """Update the list view data (called after scanning input/output)."""
     if _CTX is None:
         raise RuntimeError("list_view.init_list_view() must be called before set_data().")
     _CTX.img_paths = list(img_paths)
-    _CTX.processed = set(processed)
+    if isinstance(processed, ProcessedIndex):
+        _CTX.processed = processed
+    else:
+        _CTX.processed = ProcessedIndex(frozenset(str(x) for x in processed), frozenset())
 
 
 def get_selection_state() -> tuple[list[tk.BooleanVar], list[dict]]:
@@ -107,7 +112,7 @@ def clear_list() -> None:
 def is_processed(p: Path) -> bool:
     if _CTX is None:
         return False
-    return str(p.expanduser().resolve()) in _CTX.processed
+    return _CTX.processed.matches(p)
 
 
 def set_all(val: bool) -> None:

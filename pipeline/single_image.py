@@ -52,9 +52,9 @@ def process_one_image(
     brain_mask_ds = bm_res.mask.astype(bool)  # bool mask on img2 (downsample)
     brain_mask_params = bm_res.params  # dict
 
-    # Visualization image for all downstream UIs: gray-out everything outside the brain.
+    # Visualization image for all downstream UIs: white outside the brain (matches slide background).
     img2_vis = img2.copy()
-    img2_vis[~brain_mask_ds] = (230, 230, 230)
+    img2_vis[~brain_mask_ds] = (255, 255, 255)
 
     # Processing image: neutralize outside-brain pixels so they don't affect contrast normalization.
     img2_proc = img2.copy()
@@ -71,7 +71,7 @@ def process_one_image(
                 continue
             brain_mask_ds = bm_res.mask.astype(bool)
             img2_vis = img2.copy()
-            img2_vis[~brain_mask_ds] = (230, 230, 230)
+            img2_vis[~brain_mask_ds] = (255, 255, 255)
             continue
         break
     brain_mask_step1 = brain_mask_outline.astype(bool)

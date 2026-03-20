@@ -21,8 +21,7 @@ from ui.brain.mask_morphology import (
     _convex_hull_mask,
     _apply_edit_layers,
     _connected_component_from_seed,
-    remove_voids_inside_mask,
-    white_component_at,
+    bright_blob_erase_component_voids_style,
 )
 
 
@@ -93,8 +92,8 @@ def brain_outline_ui(
 ) -> tuple[np.ndarray, dict]:
     """Tk UI to tune threshold + contour smoothing + quick manual mask edits.
 
-    If init_mask is provided (mask from previous step), the image is cropped to its bbox
-    and shown with minimal reduction (scale only to fit window). Otherwise same as before.
+    If init_mask is provided (mask from previous step), it is reserved for future use / callers;
+    the UI works on the full image at a uniform downsample.
 
     Returns:
       (mask_bool_fullres, params_dict) — mask is in same shape as img_rgb.
@@ -170,21 +169,32 @@ def brain_outline_ui(
     root.minsize(1000, 620)
     root.geometry("1200x720")
     root.configure(fg_color="white")
-    root.grid_columnconfigure(0, weight=1)
+    root.grid_columnconfigure(0, weight=0)
+    root.grid_columnconfigure(1, weight=1)
+    root.grid_columnconfigure(2, weight=0)
     root.grid_rowconfigure(0, weight=1)
 
-    # Left: image card
+    LBAR_W = 76
+    # Left: tool strip (E / W / U / R), same idea as hippocampus picker
+    tool_card = create_card_frame(root)
+    tool_card.grid(row=0, column=0, sticky="ns", padx=(18, 6), pady=18)
+    tool_card.grid_propagate(False)
+    tool_card.configure(width=LBAR_W)
+    left_tools = ctk.CTkFrame(tool_card, fg_color="transparent")
+    left_tools.pack(expand=True, fill="y", padx=6, pady=14)
+
+    # Center: image card
     img_card = create_card_frame(root)
-    img_card.grid(row=0, column=0, sticky="nsew", padx=(18, 10), pady=18)
+    img_card.grid(row=0, column=1, sticky="nsew", padx=(6, 10), pady=18)
     img_card.columnconfigure(0, weight=1)
     img_card.rowconfigure(0, weight=1)
-    canvas_holder = tk.Frame(img_card)
+    canvas_holder = tk.Frame(img_card, bg="white")
     canvas_holder.grid(row=0, column=0, sticky="nsew")
     canvas_holder.columnconfigure(0, weight=1)
     canvas_holder.rowconfigure(0, weight=1)
     scroll_y = ttk.Scrollbar(canvas_holder)
     scroll_x = ttk.Scrollbar(canvas_holder, orient=tk.HORIZONTAL)
-    canvas = tk.Canvas(canvas_holder, highlightthickness=0, bg="#e8e8e8")
+    canvas = tk.Canvas(canvas_holder, highlightthickness=0, bg="#ffffff", takefocus=True)
     canvas.grid(row=0, column=0, sticky="nsew")
     scroll_y.grid(row=0, column=1, sticky="ns")
     scroll_x.grid(row=1, column=0, sticky="ew")
@@ -194,7 +204,7 @@ def brain_outline_ui(
 
     # Right: controls card
     ctrl = create_card_frame(root)
-    ctrl.grid(row=0, column=1, sticky="ns", padx=(0, 18), pady=18)
+    ctrl.grid(row=0, column=2, sticky="ns", padx=(0, 18), pady=18)
     ctrl.grid_propagate(False)
     ctrl.configure(width=320)
 
@@ -219,7 +229,7 @@ def brain_outline_ui(
         row=0, column=0, columnspan=2, sticky="w", padx=14, pady=(14, 6))
     create_status_label(
         ctrl,
-        text="E = erase protrusion (brush) · U/C/M = undo, clear, mask · Esc = skip image",
+        text="Tools on the left: E / W / U / R · B/A = add void / indent · C = clear (same as R) · M = mask · Esc = skip",
         wraplength=280,
     ).grid(row=1, column=0, columnspan=2, sticky="w", padx=14, pady=(0, 10))
 
@@ -250,7 +260,15 @@ def brain_outline_ui(
     lf_morph = ttk.LabelFrame(ctrl, text="THRESHOLD & MORPHOLOGY", padding=6)
     lf_morph.grid(row=2, column=0, columnspan=2, sticky="ew", padx=14, pady=(0, 6))
     lf_morph.columnconfigure(2, weight=1)
-    _add_slider_row(lf_morph, 0, "threshold", "Binarization threshold: pixels darker than this are considered tissue.", var_thr, 255)
+    _add_slider_row(
+        lf_morph,
+        0,
+        "threshold",
+        "Image is converted to grayscale. Pixels darker than this value (lower intensity) are tissue; "
+        "all lighter pixels (higher intensity, including pale colors) stay outside the auto mask.",
+        var_thr,
+        255,
+    )
     _add_slider_row(lf_morph, 1, "smooth", "Contour smoothing (kernel size).", var_smooth, 101)
     _add_slider_row(lf_morph, 2, "close", "Morphological closing: fills small holes in the mask.", var_close, 101)
     _add_slider_row(lf_morph, 3, "open", "Morphological opening: removes small protrusions.", var_open, 101)
@@ -343,13 +361,56 @@ def brain_outline_ui(
         edit_del_u8[:] = 0
         mark_dirty()
 
+    tool_mode_btns: dict[str, ctk.CTkButton] = {}
+    inactive_tool_fg = ("#e8e8e8", "gray35")
+    active_e_fg = ("#c8e6d8", "#2d6a4a")
+    active_w_fg = ("#f0d0c8", "#7a3d2d")
+    tool_btn_font = ctk.CTkFont(size=15, weight="bold")
+
+    def _make_outline_tool_btn(text_main: str, key: str, command) -> ctk.CTkButton:
+        return ctk.CTkButton(
+            left_tools,
+            text=f"{text_main}\n{key}",
+            width=52,
+            height=52,
+            corner_radius=10,
+            font=tool_btn_font,
+            command=command,
+            fg_color=inactive_tool_fg,
+            hover_color=("#d0d0d0", "gray45"),
+            text_color=("gray20", "gray90"),
+        )
+
+    def _sync_toolbar_modes() -> None:
+        mode = str(state.get("mode", ""))
+        if "e" in tool_mode_btns:
+            tool_mode_btns["e"].configure(
+                fg_color=active_e_fg if mode == "erase_protrusion_brush" else inactive_tool_fg
+            )
+        if "w" in tool_mode_btns:
+            tool_mode_btns["w"].configure(
+                fg_color=active_w_fg if mode == "erase_white" else inactive_tool_fg
+            )
+
     def set_mode(kind: str) -> None:
         state["mode"] = kind
+        _sync_toolbar_modes()
+        try:
+            canvas.focus_set()
+        except Exception:
+            pass
+
+    btn_e = _make_outline_tool_btn("Brush", "E", lambda: set_mode("erase_protrusion_brush"))
+    btn_e.pack(pady=(0, 8))
+    tool_mode_btns["e"] = btn_e
+    btn_w = _make_outline_tool_btn("Del W", "W", lambda: set_mode("erase_white"))
+    btn_w.pack(pady=(0, 8))
+    tool_mode_btns["w"] = btn_w
+    _make_outline_tool_btn("Undo", "U", lambda: (undo_last(), mark_dirty())).pack(pady=(0, 8))
+    _make_outline_tool_btn("Reset", "R", do_clear).pack(pady=(0, 8))
 
     create_primary_button(btns, text="Accept", command=do_accept).grid(row=0, column=0, sticky="ew", padx=(0, 6))
     create_secondary_button(btns, text="Skip image", command=do_skip).grid(row=0, column=1, sticky="ew")
-    create_secondary_button(btns, text="Undo (U)", command=lambda: (undo_last(), mark_dirty())).grid(row=1, column=0, sticky="ew", pady=(6, 0), padx=(0, 6))
-    create_secondary_button(btns, text="Clear edits (C)", command=do_clear).grid(row=1, column=1, sticky="ew", pady=(6, 0))
 
     def do_rerun_threshold() -> None:
         """Close this window immediately; pipeline will open threshold and then re-open Brain outline."""
@@ -394,7 +455,6 @@ def brain_outline_ui(
         disp_scale = min(1.0, cw / float(w), ch / float(h))
         disp_w = int(round(w * disp_scale))
         disp_h = int(round(h * disp_scale))
-        canvas.configure(width=cw, height=ch)
 
         # Read slider values
         thr = int(var_thr.get())
@@ -442,6 +502,12 @@ def brain_outline_ui(
         # On the outline step we want a solid brain region with no internal voids,
         # but we still allow arbitrary contour shape. Just fill all holes here.
         m = _fill_holes(m, binary=True)
+        m = (m > 0).astype(np.uint8) * 255
+        # Manual carve-outs (W, erase protrusion, etc.): _fill_holes would refill them as
+        # "holes" and the green contour would not move — force deletions to stay off.
+        if np.any(edit_del_u8):
+            m = m.copy()
+            m[edit_del_u8 > 0] = 0
         state["m_u8"] = m
 
         # Protrusions: cache by same fingerprint so zoom-only changes skip morphology
@@ -484,6 +550,11 @@ def brain_outline_ui(
         state["disp_w_zoomed"] = disp_w_zoomed
         state["disp_h_zoomed"] = disp_h_zoomed
         vis_bgr = cv2.resize(vis_bgr, (disp_w_zoomed, disp_h_zoomed), interpolation=cv2.INTER_AREA)
+
+        # Snug viewport to bitmap so we don't show a grey/white letterbox strip (canvas bg).
+        cw_vis = int(min(cw, max(1, disp_w_zoomed)))
+        ch_vis = int(min(ch, max(1, disp_h_zoomed)))
+        canvas.configure(width=cw_vis, height=ch_vis)
 
         # show brush radius around cursor for brush modes
         # convert to Tk image (RGB)
@@ -577,7 +648,16 @@ def brain_outline_ui(
                 state["protrusions_u8"] = protrusions_new.copy()
                 mark_dirty()
         elif mode == "erase_white":
-            cc = white_component_at(m_current, g, ix, iy)
+            # Bright CC from click (voids-style threshold); delete only if that CC touches the
+            # outer mask boundary within tolerance (interior-only bright islands → Fill voids).
+            cc = bright_blob_erase_component_voids_style(
+                m_current,
+                g,
+                ix,
+                iy,
+                component_must_touch_boundary=True,
+                boundary_tolerance_px=50,
+            )
             if cc.sum() > 0:
                 push_undo()
                 edit_del_u8[:] = cv2.bitwise_or(edit_del_u8, cc)
@@ -608,7 +688,14 @@ def brain_outline_ui(
                 edit_add_u8[:] = cv2.bitwise_or(edit_add_u8, cc)
                 mark_dirty()
 
-    canvas.bind("<Button-1>", on_click)
+    def _on_canvas_click(ev):
+        try:
+            canvas.focus_set()
+        except Exception:
+            pass
+        on_click(ev)
+
+    canvas.bind("<Button-1>", _on_canvas_click)
 
     def on_motion(ev: tk.Event) -> None:
         xy = _canvas_to_ui_xy(ev)
@@ -663,7 +750,7 @@ def brain_outline_ui(
             undo_last()
             mark_dirty()
             return
-        if ks == "c":
+        if ks == "c" or ks == "r":
             do_clear()
             return
         if ks == "m":

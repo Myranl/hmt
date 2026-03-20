@@ -88,11 +88,11 @@ def render(ctx: BrainMaskUIContext, thr_eff: int, thr_base: int, pad_extra: int)
     mask_u8 = compute_mask(ctx.gray_u8, thr=thr_eff, pad_eff_ui=pad_eff_ui, close_r_ui=ctx.close_r_ui, open_r_ui=ctx.open_r_ui, seed_r_ui=ctx.seed_r_ui,)
     disp = ctx.rgb.copy()  # RGB
 
-    # Gray out everything OUTSIDE the current mask so the brain pops out visually.
+    # White fill OUTSIDE the current mask so the brain pops out visually.
     m = (mask_u8 > 0).astype(np.uint8)
     outside = m == 0
     if np.any(outside):
-        disp[outside] = (220, 220, 220)
+        disp[outside] = (255, 255, 255)
 
     # Draw boundary with high contrast (black underlay + magenta line)
     cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -375,7 +375,7 @@ def brain_mask_threshold_ui(
         m = (mask_u8 > 0).astype(np.uint8)
         outside = m == 0
         if np.any(outside):
-            disp_rgb[outside] = (220, 220, 220)
+            disp_rgb[outside] = (255, 255, 255)
 
         cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if cnts:

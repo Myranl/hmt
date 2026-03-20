@@ -41,6 +41,7 @@ def _format_value_for_debug(value: str) -> str:
 
 
 CANONICAL_HEADERS = [
+    "image_path",
     "overlay_path",
     "img_name",
     "accepted",

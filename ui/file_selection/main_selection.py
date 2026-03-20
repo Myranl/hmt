@@ -18,6 +18,7 @@ from ui.file_selection.reorganise_result import (
     debug_print_results_head,
     reorganise_results_to_ok_csv,
 )
+from pipeline.input_scan import ProcessedIndex, load_processed
 from ui.file_selection.show_graphs_ui import show_graphs_ui
 from ui.common.tk_after import make_on_destroy
 from ui.common.theme import setup_theme, get_base_font, get_small_muted_font
@@ -188,7 +189,7 @@ def run_folder_and_selection_ui(
     vars_sel: list[tk.BooleanVar] = []
     meta: list[dict] = []
     img_paths: list[Path] = []
-    processed: set[str] = set()
+    processed: ProcessedIndex = ProcessedIndex()
     csv_path: Path | None = None
     result = {"done": False, "selected": []}
 
@@ -280,26 +281,6 @@ def run_folder_and_selection_ui(
         files.sort(key=lambda p: str(p).lower())
         return files
 
-    def load_processed(csv_path: Path) -> set[str]:
-        """Paths considered processed if at least one row has status OK (so re-run after skip counts as processed)."""
-        if not csv_path.exists():
-            return set()
-        out: set[str] = set()
-        try:
-            with csv_path.open("r", encoding="utf-8", newline="") as f:
-                rd = csv.DictReader(f)
-                for row in rd:
-                    p = (row.get("image_path") or "").strip()
-                    if not p:
-                        continue
-                    p_res = str(Path(p).expanduser().resolve())
-                    st = (row.get("status") or "").strip().lower()
-                    if st == "ok":
-                        out.add(p_res)
-        except Exception:
-            pass
-        return out
-
     def on_ok() -> None:
         nonlocal img_paths, processed, csv_path
         persist_folder_choices(
@@ -359,7 +340,7 @@ def run_folder_and_selection_ui(
                 return
             p = img_paths[i]
             p_res = str(p.expanduser().resolve())
-            is_proc = p_res in processed
+            is_proc = processed.matches(p_res)
             try:
                 thumbs.append(make_thumb(p))
             except Exception:

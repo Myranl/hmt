@@ -1,13 +1,23 @@
 import numpy as np
 import cv2
-from typing import Tuple, Dict, Any
+from typing import Any, Dict, Literal, Tuple, Union
 import json
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
 
+import customtkinter as ctk  # type: ignore[import-untyped]
 
-# Helper: select components on a background RGB image (Tk UI, same style as brain_outline)
+from ui.common.theme import setup_theme, get_base_font, get_small_muted_font
+from ui.common.widgets import (
+    create_card_frame,
+    create_primary_button,
+    create_secondary_button,
+)
+from ui.file_selection.settings import load_folder_choices
+
+
+# Helper: select components on a background RGB image (CTk UI, same style as folders / brain outline)
 def select_components_on_background(
     sketch_u8_roi: np.ndarray,
     bg_rgb_roi: np.ndarray,
@@ -15,8 +25,13 @@ def select_components_on_background(
     window: str,
     init_selected: np.ndarray | None = None,
     init_cuts=None,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Click to toggle connected components. Tk UI: canvas left, instructions/buttons in right panel (no text on image)."""
+    allow_open_bins_ui: bool = False,
+) -> Union[tuple[np.ndarray, np.ndarray], Literal["edit_bins"]]:
+    """Click to toggle connected components. CTk UI: image card + controls (same style as brain outline).
+
+    If ``allow_open_bins_ui`` is True, a toolbar control opens the 3-bin sketch step: this window closes
+    and the caller should return ``\"edit_bins\"`` so the pipeline can run ``run_bins_ui`` and reopen pick.
+    """
 
     base0 = sketch_u8_roi.copy()
     base = base0.copy()
@@ -96,67 +111,306 @@ def select_components_on_background(
             cv2.circle(disp, (int(pending_pt[0]), int(pending_pt[1])), 7, (0, 255, 255), -1)
         return disp
 
-    # --- Tk layout (top controls, canvas below) ---
+    # --- CTk layout (toolbar + dark canvas + stats; wheel zoom, space+drag pan) ---
+    setup_theme()
     parent = tk._default_root
-    if parent is None:
-        root = tk.Tk()
-    else:
-        root = tk.Toplevel(parent)
+    if parent is not None and isinstance(parent, ctk.CTk):
+        root = ctk.CTkToplevel(parent)
         root.transient(parent)
+    else:
+        root = ctk.CTk()
     root.title(window)
-    root.update_idletasks()
+    root.configure(fg_color="white")
+    root.minsize(960, 520)
+    root.grid_columnconfigure(1, weight=1)
+    # No vertical stretch on body — avoids empty white band between image and footer
+    root.grid_rowconfigure(1, weight=0)
     try:
         root.grab_set()
     except Exception:
         pass
 
-    frm = ttk.Frame(root, padding=8)
-    frm.pack(fill="both", expand=True)
-    frm.columnconfigure(0, weight=1)
-    frm.rowconfigure(1, weight=1)
+    img_h, img_w = int(base.shape[0]), int(base.shape[1])
+    try:
+        screen_w = int(root.winfo_screenwidth())
+        screen_h = int(root.winfo_screenheight())
+    except Exception:
+        screen_w, screen_h = 1400, 900
 
-    ctrl = ttk.Frame(frm)
-    ctrl.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-    ctrl.columnconfigure(0, weight=1)
+    # Layout constants (second-screen style)
+    HDR_H = 52
+    FTR_ROW = 44  # footer: zoom + Skip Image (left) · hint + Done (right)
+    LBAR_W = 76
+    GRID_PAD_X = 36  # horizontal margins (padx) around content
+    GRID_PAD_Y = 32
+    max_win_w = min(1400, int(screen_w * 0.92))
+    max_body_h = int(screen_h * 0.86) - HDR_H - FTR_ROW - GRID_PAD_Y
 
-    frm_canvas = ttk.Frame(frm)
-    frm_canvas.grid(row=1, column=0, sticky="nsew")
-    scroll_y = ttk.Scrollbar(frm_canvas)
-    scroll_x = ttk.Scrollbar(frm_canvas, orient=tk.HORIZONTAL)
-    canvas = tk.Canvas(frm_canvas, highlightthickness=0, bg="#111")
-    canvas.grid(row=0, column=0, sticky="nsew")
+    target_canvas_w = max(480, max_win_w - LBAR_W - GRID_PAD_X)
+    fit_scale = target_canvas_w / float(img_w)
+    nat_canvas_h = int(round(img_h * fit_scale))
+    # Horizontal scrollbar row under the canvas (ttk scrollbar height)
+    SCROLL_X_H = 22
+    # Canvas viewport: never force a min height > image (was max(420,…) → black band below bitmap)
+    initial_canvas_h = max(80, min(max_body_h, nat_canvas_h))
+    viewport_w = int(target_canvas_w)
+
+    zoom_mul = [1.0]  # multiplier on top of fit-to-width scale
+    disp_scale = [fit_scale * zoom_mul[0]]
+    disp_w = [int(round(img_w * disp_scale[0]))]
+    disp_h = [int(round(img_h * disp_scale[0]))]
+
+    settings = load_folder_choices()
+    graphs_convert = bool(settings.get("graphs_convert_enabled", False))
+    graphs_unit = str(settings.get("graphs_unit", "mm")).lower()
+    try:
+        graphs_ppu = float(settings.get("graphs_pixels_per_unit", 100.0))
+    except Exception:
+        graphs_ppu = 100.0
+
+    def fmt_px(n: int) -> str:
+        return f"{int(n):,}".replace(",", " ")
+
+    def count_selected_regions() -> int:
+        m = (selected > 0).astype(np.uint8)
+        if not np.any(m):
+            return 0
+        n, _, _, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
+        return int(n - 1)
+
+    def area_in_phys_units(n_px: int) -> str | None:
+        if not graphs_convert or graphs_ppu <= 0:
+            return None
+        if graphs_unit == "mm":
+            mm2 = n_px / (graphs_ppu**2)
+            return f"{mm2:.2f}"
+        if graphs_unit == "cm":
+            cm2 = n_px / (graphs_ppu**2)
+            return f"{cm2:.2f}"
+        return None
+
+    # -------- Header --------
+    header = ctk.CTkFrame(root, fg_color="transparent")
+    header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=18, pady=(16, 8))
+    header.grid_columnconfigure(1, weight=1)
+
+    ctk.CTkLabel(
+        header,
+        text="Pick hippocampus (green)",
+        font=ctk.CTkFont(size=17, weight="bold"),
+    ).grid(row=0, column=0, sticky="w")
+
+    badge_lbl = ctk.CTkLabel(
+        header,
+        text="PICK",
+        font=ctk.CTkFont(size=12, weight="bold"),
+        corner_radius=8,
+        fg_color=("#cfe8f6", "#2b4a5e"),
+        text_color=("gray20", "gray90"),
+        width=56,
+        height=28,
+    )
+    badge_lbl.grid(row=0, column=1, sticky="w", padx=(12, 0))
+
+    header_sel = ctk.CTkLabel(
+        header,
+        text="Selected: 0 px · 0 reg.",
+        font=get_base_font(),
+        text_color=("gray35", "gray70"),
+        anchor="e",
+    )
+    header_sel.grid(row=0, column=2, sticky="e")
+
+    def _header_selection_text(n_sel: int) -> str:
+        nreg = count_selected_regions()
+        parts = [f"Selected: {fmt_px(n_sel)} px", f"{nreg} reg."]
+        phys = area_in_phys_units(n_sel)
+        unit_s = "mm²" if graphs_unit == "mm" else ("cm²" if graphs_unit == "cm" else "")
+        if phys is not None and unit_s:
+            parts.append(f"≈ {phys} {unit_s}")
+        return " · ".join(parts)
+
+    # -------- Left toolbar (square tool buttons) --------
+    tool_card = create_card_frame(root)
+    tool_card.grid(row=1, column=0, sticky="n", padx=(18, 6), pady=(0, 0))
+    tool_card.grid_propagate(False)
+    tool_card.configure(width=LBAR_W)
+
+    tool_font = ctk.CTkFont(size=18, weight="bold")
+    inactive_fg = ("#e8e8e8", "gray35")
+    active_add = ("#8fd4a8", "#2d7a52")
+    active_cut = ("#f0c4c4", "#8b3a3a")
+
+    def _make_tool_btn(parent, text_main: str, key: str, command) -> ctk.CTkButton:
+        return ctk.CTkButton(
+            parent,
+            text=f"{text_main}\n{key}",
+            width=52,
+            height=52,
+            corner_radius=10,
+            font=tool_font,
+            command=command,
+            fg_color=inactive_fg,
+            hover_color=("#d0d0d0", "gray45"),
+            text_color=("gray20", "gray90"),
+        )
+
+    # -------- Center: dark canvas --------
+    img_card = create_card_frame(root, fg_color=("#2a2a2a", "#1a1a1a"))
+    # "new" = top-align; avoids stretching the dark card when row is taller than the image
+    img_card.grid(row=1, column=1, sticky="new", padx=(6, 18), pady=(0, 0))
+    img_card.columnconfigure(0, weight=1)
+    img_card.rowconfigure(0, weight=0)
+    canvas_holder = tk.Frame(img_card, bg="#2a2a2a")
+    canvas_holder.grid(row=0, column=0, sticky="new", padx=2, pady=2)
+    canvas_holder.columnconfigure(0, weight=1)
+    canvas_holder.rowconfigure(0, weight=0)
+    canvas_holder.rowconfigure(1, weight=0)
+    scroll_y = ttk.Scrollbar(canvas_holder)
+    scroll_x = ttk.Scrollbar(canvas_holder, orient=tk.HORIZONTAL)
+    canvas = tk.Canvas(canvas_holder, highlightthickness=0, bg="#252525")
+    canvas.grid(row=0, column=0, sticky="nw")
     scroll_y.grid(row=0, column=1, sticky="ns")
     scroll_x.grid(row=1, column=0, sticky="ew")
     canvas.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
     scroll_y.configure(command=canvas.yview)
     scroll_x.configure(command=canvas.xview)
-    frm_canvas.columnconfigure(0, weight=1)
-    frm_canvas.rowconfigure(0, weight=1)
+    canvas.configure(width=viewport_w, height=initial_canvas_h)
 
-    top_info = ttk.Frame(ctrl)
-    top_info.grid(row=0, column=0, sticky="ew")
-    top_info.columnconfigure(1, weight=1)
-
-    lbl_title = ttk.Label(top_info, text="Pick hippocampus (green)", font=("TkDefaultFont", 14, "bold"))
-    lbl_title.grid(row=0, column=0, sticky="w", padx=(0, 14))
-
-    mode_var = tk.StringVar(value="MODE: PICK")
-    lbl_mode = ttk.Label(top_info, textvariable=mode_var, font=("TkDefaultFont", 11, "bold"))
-    lbl_mode.grid(row=0, column=1, sticky="w", padx=(0, 14))
-
-    status_var = tk.StringVar(value="")
-    lbl_status = ttk.Label(top_info, textvariable=status_var, justify="left")
-    lbl_status.grid(row=0, column=2, sticky="w")
-
-    lbl_hint = ttk.Label(
-        ctrl,
-        text="PICK: click regions to toggle selection.  C: CUT  A: ADD  U: undo  R: reset sel  Enter: done  Esc: cancel",
-        justify="left",
-    )
-    lbl_hint.grid(row=1, column=0, sticky="w", pady=(6, 8))
+    # -------- Footer (zoom + hint + compact actions) --------
+    footer = ctk.CTkFrame(root, fg_color="transparent")
+    footer.grid(row=2, column=0, columnspan=2, sticky="ew", padx=18, pady=(8, 12))
+    footer.grid_columnconfigure(2, weight=1)
+    zoom_var = tk.StringVar(value="Zoom: 100%")
+    ctk.CTkLabel(
+        footer,
+        textvariable=zoom_var,
+        font=get_small_muted_font(),
+        text_color="gray50",
+    ).grid(row=0, column=0, sticky="w")
+    ctk.CTkLabel(
+        footer,
+        text=(
+            "Scroll to zoom · Space + drag to pan · Esc = skip image"
+            + (" · B = 3-bin sketch" if allow_open_bins_ui else "")
+        ),
+        font=get_small_muted_font(),
+        text_color="gray50",
+    ).grid(row=0, column=3, sticky="e", padx=(0, 6))
 
     result: list[tuple[np.ndarray, np.ndarray] | None] = [None]
     cancelled = [False]
+    edit_bins_redirect = [False]
+    space_held = [False]
+    pan_drag = [False]
+    tk_img_ref: dict = {}
+    canvas_img_id: list = []
+
+    def _sync_badge_and_tools() -> None:
+        if mode == "add":
+            badge_lbl.configure(text="ADD", fg_color=("#c8f0d4", "#1e5c36"))
+        elif mode == "cut":
+            badge_lbl.configure(text="CUT", fg_color=("#f5d0d0", "#6b2a2a"))
+        else:
+            badge_lbl.configure(text="PICK", fg_color=("#cfe8f6", "#2b4a5e"))
+        try:
+            btn_add.configure(fg_color=active_add if mode == "add" else inactive_fg)
+            btn_cut.configure(fg_color=active_cut if mode == "cut" else inactive_fg)
+        except Exception:
+            pass
+
+    def _recompute_scale_from_zoom() -> None:
+        disp_scale[0] = fit_scale * zoom_mul[0]
+        disp_w[0] = max(1, int(round(img_w * disp_scale[0])))
+        disp_h[0] = max(1, int(round(img_h * disp_scale[0])))
+        pct = int(round(zoom_mul[0] * 100))
+        zoom_var.set(f"Zoom: {pct}%")
+
+    def _refresh() -> None:
+        _recompute_scale_from_zoom()
+        disp = redraw()
+        ds = disp_scale[0]
+        dw, dh = disp_w[0], disp_h[0]
+        if abs(ds - 1.0) > 1e-9 or dw != img_w or dh != img_h:
+            disp = cv2.resize(disp, (dw, dh), interpolation=cv2.INTER_NEAREST)
+        n_sel = int((selected > 0).sum())
+        header_sel.configure(text=_header_selection_text(n_sel))
+        _sync_badge_and_tools()
+        # Snug viewport to scaled image so we don't show empty canvas (black) below/ beside it
+        cw = int(min(viewport_w, max(1, dw)))
+        ch = int(min(max_body_h, max(1, dh)))
+        canvas.configure(width=cw, height=ch)
+        rgb = cv2.cvtColor(disp, cv2.COLOR_BGR2RGB)
+        pil = Image.fromarray(rgb)
+        tk_img = ImageTk.PhotoImage(pil, master=root)
+        tk_img_ref["img"] = tk_img
+        if not canvas_img_id:
+            canvas_img_id.append(canvas.create_image(0, 0, anchor="nw", image=tk_img))
+        else:
+            canvas.itemconfigure(canvas_img_id[0], image=tk_img)
+        canvas.configure(scrollregion=(0, 0, dw, dh))
+
+    def _canvas_xy(ev) -> tuple[int, int] | None:
+        cx, cy = canvas.canvasx(ev.x), canvas.canvasy(ev.y)
+        dw, dh = disp_w[0], disp_h[0]
+        if cx < 0 or cy < 0 or cx >= dw or cy >= dh:
+            return None
+        ix = int(round(cx / disp_scale[0]))
+        iy = int(round(cy / disp_scale[0]))
+        return (min(max(ix, 0), img_w - 1), min(max(iy, 0), img_h - 1))
+
+    def _apply_zoom_at(ev, direction: int) -> None:
+        """direction +1 = zoom in, -1 = zoom out; keep point under cursor stable."""
+        canvas.update_idletasks()
+        mx = canvas.canvasx(ev.x)
+        my = canvas.canvasy(ev.y)
+        dw0, dh0 = disp_w[0], disp_h[0]
+        if dw0 <= 0 or dh0 <= 0:
+            return
+        fx = mx / float(dw0)
+        fy = my / float(dh0)
+        vis_w = max(1, canvas.winfo_width())
+        vis_h = max(1, canvas.winfo_height())
+        step = 1.12 if direction > 0 else 1.0 / 1.12
+        zoom_mul[0] = min(8.0, max(0.2, zoom_mul[0] * step))
+
+        _refresh()
+        dw1, dh1 = disp_w[0], disp_h[0]
+
+        # New scroll so (fx, fy) stays under (ev.x, ev.y)
+        n_scroll_x = fx * dw1 - ev.x
+        n_scroll_y = fy * dh1 - ev.y
+        sx1 = max(0.0, min(max(0.0, dw1 - vis_w), n_scroll_x))
+        sy1 = max(0.0, min(max(0.0, dh1 - vis_h), n_scroll_y))
+        frac_x = sx1 / max(1e-6, dw1 - vis_w) if dw1 > vis_w else 0.0
+        frac_y = sy1 / max(1e-6, dh1 - vis_h) if dh1 > vis_h else 0.0
+        canvas.xview_moveto(frac_x)
+        canvas.yview_moveto(frac_y)
+
+    def _on_mousewheel(ev) -> None:
+        d = int(getattr(ev, "delta", 0) or 0)
+        if d == 0:
+            return
+        # Windows: ±120 steps; macOS may send smaller deltas
+        direction = 1 if d > 0 else -1
+        _apply_zoom_at(ev, direction)
+
+    def _on_wheel_linux_up(_ev) -> None:
+        class E:
+            x, y, delta = _ev.x, _ev.y, 120
+
+        _on_mousewheel(E())
+
+    def _on_wheel_linux_down(_ev) -> None:
+        class E:
+            x, y, delta = _ev.x, _ev.y, -120
+
+        _on_mousewheel(E())
+
+    canvas.bind("<MouseWheel>", _on_mousewheel)
+    canvas.bind("<Button-4>", _on_wheel_linux_up)
+    canvas.bind("<Button-5>", _on_wheel_linux_down)
+    canvas.bind("<Enter>", lambda _e: canvas.focus_set())
 
     def do_done() -> None:
         result[0] = (selected.copy(), base.copy())
@@ -180,14 +434,12 @@ def select_components_on_background(
         nonlocal mode, pending_pt
         mode = "pick" if mode == "cut" else "cut"
         pending_pt = None
-        mode_var.set("MODE: CUT" if mode == "cut" else "MODE: PICK")
         _refresh()
 
     def do_add() -> None:
         nonlocal mode, pending_pt
         mode = "pick" if mode == "add" else "add"
         pending_pt = None
-        mode_var.set("MODE: ADD" if mode == "add" else "MODE: PICK")
         _refresh()
 
     def do_clear_strokes() -> None:
@@ -224,68 +476,57 @@ def select_components_on_background(
         history.clear()
         _refresh()
 
-    btns = ttk.Frame(ctrl)
-    btns.grid(row=2, column=0, sticky="ew")
-    for i in range(7):
-        btns.columnconfigure(i, weight=1)
-    ttk.Button(btns, text="Done (Enter)", command=do_done).grid(row=0, column=0, sticky="ew", padx=(0, 6))
-    ttk.Button(btns, text="Cancel (Esc)", command=do_cancel).grid(row=0, column=1, sticky="ew", padx=(0, 6))
-    ttk.Button(btns, text="Cut (C)", command=do_cut).grid(row=0, column=2, sticky="ew", padx=(0, 6))
-    ttk.Button(btns, text="Add (A)", command=do_add).grid(row=0, column=3, sticky="ew", padx=(0, 6))
-    ttk.Button(btns, text="Clear strokes (X)", command=do_clear_strokes).grid(row=0, column=4, sticky="ew", padx=(0, 6))
-    ttk.Button(btns, text="Undo (U)", command=do_undo).grid(row=0, column=5, sticky="ew", padx=(0, 6))
-    ttk.Button(btns, text="Reset sel (R)", command=do_reset_sel).grid(row=0, column=6, sticky="ew")
+    def do_open_bins_ui() -> None:
+        """Close pick UI; pipeline opens 3-bin sketch, then returns here (like brain outline ↔ threshold)."""
+        edit_bins_redirect[0] = True
+        try:
+            root.grab_release()
+        except Exception:
+            pass
+        root.destroy()
 
-    h, w = base.shape[:2]
-    try:
-        screen_w = int(root.winfo_screenwidth())
-        screen_h = int(root.winfo_screenheight())
-    except Exception:
-        screen_w, screen_h = 1400, 900
+    btn_add = _make_tool_btn(tool_card, "+", "A", do_add)
+    btn_add.pack(padx=10, pady=(12, 6))
+    btn_cut = _make_tool_btn(tool_card, "−", "C", do_cut)
+    btn_cut.pack(padx=10, pady=6)
+    btn_undo = _make_tool_btn(tool_card, "↶", "U", do_undo)
+    btn_undo.pack(padx=10, pady=6)
+    btn_clear = _make_tool_btn(tool_card, "✕", "X", do_clear_strokes)
+    btn_clear.pack(padx=10, pady=6)
+    btn_reset = _make_tool_btn(tool_card, "↻", "R", do_reset_sel)
+    btn_reset.pack(padx=10, pady=(6, 6 if allow_open_bins_ui else 12))
+    if allow_open_bins_ui:
+        btn_bins = _make_tool_btn(tool_card, "≡", "B", do_open_bins_ui)
+        btn_bins.pack(padx=10, pady=(6, 12))
 
-    max_canvas_w = int(screen_w * 0.90)
-    max_canvas_h = int(screen_h * 0.75)
-    disp_scale = min(1.0, max_canvas_w / float(w), max_canvas_h / float(h))
-    disp_w = int(round(w * disp_scale))
-    disp_h = int(round(h * disp_scale))
-    canvas.configure(width=min(disp_w, max_canvas_w), height=min(disp_h, max_canvas_h))
+    done_w, skip_w, action_h = 100, 118, 30
+    skip_btn = create_secondary_button(
+        footer, text="Skip Image", command=do_cancel, width=skip_w, height=action_h
+    )
+    skip_btn.grid(row=0, column=1, sticky="w", padx=(10, 0))
+    done_btn = create_primary_button(
+        footer, text="Done", command=do_done, width=done_w, height=action_h
+    )
+    done_btn.grid(row=0, column=4, sticky="e")
 
-    # Tight window: controls on top + image below, no huge empty side panel
-    root.update_idletasks()
-    ctrl_h = int(ctrl.winfo_reqheight())
-    total_w = min(max(disp_w + 24, 700), int(screen_w * 0.95))
-    total_h = min(max(ctrl_h + disp_h + 40, 500), int(screen_h * 0.92))
+    total_w = viewport_w + LBAR_W + GRID_PAD_X
+    total_h = HDR_H + initial_canvas_h + SCROLL_X_H + FTR_ROW + GRID_PAD_Y + 12
+    total_w = min(total_w, int(screen_w * 0.98))
+    total_h = min(total_h, int(screen_h * 0.94))
     root.geometry(f"{total_w}x{total_h}")
+    root.update_idletasks()
+    rw = root.winfo_width()
+    rh = root.winfo_height()
+    x0 = max(0, (screen_w - rw) // 2)
+    y0 = max(0, (screen_h - rh) // 2)
+    root.geometry(f"{rw}x{rh}+{x0}+{y0}")
 
-    tk_img_ref: dict = {}
-    canvas_img_id: list = []  # mutable to store id after first create
-
-    def _refresh() -> None:
-        disp = redraw()
-        if disp_scale < 1.0:
-            disp = cv2.resize(disp, (disp_w, disp_h), interpolation=cv2.INTER_NEAREST)
-        n_sel = int((selected > 0).sum())
-        status_var.set(f"Selected: {n_sel} px")
-        rgb = cv2.cvtColor(disp, cv2.COLOR_BGR2RGB)
-        pil = Image.fromarray(rgb)
-        tk_img = ImageTk.PhotoImage(pil, master=root)
-        tk_img_ref["img"] = tk_img
-        if not canvas_img_id:
-            canvas_img_id.append(canvas.create_image(0, 0, anchor="nw", image=tk_img))
-        else:
-            canvas.itemconfigure(canvas_img_id[0], image=tk_img)
-        canvas.configure(scrollregion=(0, 0, disp_w, disp_h))
-
-    def _canvas_xy(ev) -> tuple[int, int] | None:
-        cx, cy = canvas.canvasx(ev.x), canvas.canvasy(ev.y)
-        if cx < 0 or cy < 0 or cx >= disp_w or cy >= disp_h:
-            return None
-        ix = int(round(cx / disp_scale))
-        iy = int(round(cy / disp_scale))
-        return (min(max(ix, 0), w - 1), min(max(iy, 0), h - 1))
-
-    def on_click(ev) -> None:
+    def on_press(ev) -> None:
         nonlocal pending_pt, lab, fg, edges
+        if space_held[0]:
+            pan_drag[0] = True
+            canvas.scan_mark(int(ev.x), int(ev.y))
+            return
         xy = _canvas_xy(ev)
         if xy is None:
             return
@@ -324,7 +565,16 @@ def select_components_on_background(
             history.append(idx)
         _refresh()
 
-    canvas.bind("<Button-1>", on_click)
+    def on_motion(ev) -> None:
+        if pan_drag[0]:
+            canvas.scan_dragto(int(ev.x), int(ev.y), gain=1)
+
+    def on_release(_ev) -> None:
+        pan_drag[0] = False
+
+    canvas.bind("<ButtonPress-1>", on_press)
+    canvas.bind("<B1-Motion>", on_motion)
+    canvas.bind("<ButtonRelease-1>", on_release)
 
     def on_key(ev) -> None:
         k = (ev.keysym or "").lower()
@@ -346,10 +596,38 @@ def select_components_on_background(
         if k == "r":
             do_reset_sel()
             return
+        if k == "x":
+            do_clear_strokes()
+            return
+        if k == "b" and allow_open_bins_ui:
+            do_open_bins_ui()
+            return
+
+    def on_space_press(_ev) -> None:
+        space_held[0] = True
+        try:
+            canvas.configure(cursor="fleur")
+        except Exception:
+            pass
+
+    def on_space_release(_ev) -> None:
+        space_held[0] = False
+        pan_drag[0] = False
+        try:
+            canvas.configure(cursor="")
+        except Exception:
+            pass
 
     root.bind("<Key>", on_key)
+    root.bind("<KeyPress-space>", on_space_press)
+    root.bind("<KeyRelease-space>", on_space_release)
+
+    _sync_badge_and_tools()
     _refresh()
     root.wait_window(root)
+
+    if edit_bins_redirect[0]:
+        return "edit_bins"
 
     if cancelled[0] and result[0] is not None:
         out_sel, out_base = result[0]
@@ -367,16 +645,24 @@ def pick_hippocampus_and_split_by_midline(
     roi_x0: int,
     roi_y0: int,
     window: str = "Pick hippocampus components (green)",
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Literal["edit_bins"]]:
     """
     1) Let user click connected components on sketch within ROI (returns sel_roi, sketch_after).
     2) Split sel_roi into left/right hemispheres using midline points (from full-image coords).
-    Returns: (left_roi_sel_u8, right_roi_sel_u8, sketch_after_u8), all in ROI coords.
+    Returns: (left_roi_sel_u8, right_roi_sel_u8, sketch_after_u8), all in ROI coords,
+    or the literal ``\"edit_bins\"`` if the user chose to adjust 3-bin thresholds (pipeline should
+    run ``run_bins_ui`` and call this again).
     """
 
-    sel_roi_u8, sketch_after = select_components_on_background(
-        sketch_u8_roi, bg_roi_rgb, window=window
+    picked = select_components_on_background(
+        sketch_u8_roi,
+        bg_roi_rgb,
+        window=window,
+        allow_open_bins_ui=True,
     )
+    if picked == "edit_bins":
+        return "edit_bins"
+    sel_roi_u8, sketch_after = picked
     sel = (sel_roi_u8 > 0)
 
     # Parse and shift midline points into ROI coords

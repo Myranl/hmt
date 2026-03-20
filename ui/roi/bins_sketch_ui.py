@@ -16,7 +16,7 @@ def run_bins_ui(*, gray: np.ndarray, img_rgb: np.ndarray, roi: tuple[int, int, i
     x0, y0, x1, y1 = roi
 
     root = tk.Tk()
-    root.title("Step 2/2: 3-bin sketch controls")
+    root.title("3-bin sketch (thresholds)")
 
     frm = ttk.Frame(root, padding=10)
     frm.grid(row=0, column=0, sticky="nsew")

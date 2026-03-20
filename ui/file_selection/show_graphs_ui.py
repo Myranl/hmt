@@ -260,10 +260,13 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     btns_save.grid(row=7, column=0, sticky="ew", pady=(4, 4))
     btns_save.columnconfigure(0, weight=1)
     btns_save.columnconfigure(1, weight=1)
+    btns_save.columnconfigure(2, weight=1)
     btn_save_current = ttk.Button(btns_save, text="Save current graph")
     btn_save_all = ttk.Button(btns_save, text="Save all graphs")
+    btn_copy_stats = ttk.Button(btns_save, text="Copy stats")
     btn_save_current.grid(row=0, column=0, sticky="ew", padx=(0, 4))
     btn_save_all.grid(row=0, column=1, sticky="ew", padx=(4, 0))
+    btn_copy_stats.grid(row=0, column=2, sticky="ew", padx=(4, 0))
 
     stats_txt = tk.Text(left, width=40, height=24, wrap="word")
     stats_txt.grid(row=8, column=0, sticky="nsew", pady=(8, 0))
@@ -291,6 +294,18 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
         try:
             win.clipboard_clear()
             win.clipboard_append(sel)
+            win.update_idletasks()
+        except Exception:
+            pass
+        return "break"
+
+    def _copy_stats_all(_ev=None):
+        try:
+            txt = stats_txt.get("1.0", "end-1c")
+            if not txt.strip():
+                return "break"
+            win.clipboard_clear()
+            win.clipboard_append(txt)
             win.update_idletasks()
         except Exception:
             pass
@@ -627,6 +642,7 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     btn_draw.configure(command=_draw)
     btn_save_current.configure(command=_save_current_graph)
     btn_save_all.configure(command=_save_all_graphs)
+    btn_copy_stats.configure(command=_copy_stats_all)
     cmb_mode.bind("<<ComboboxSelected>>", lambda _e: _draw())
     cmb_graph.bind("<<ComboboxSelected>>", lambda _e: (_refresh_dynamic_controls(), _draw()))
     cmb_hist_col.bind("<<ComboboxSelected>>", lambda _e: _draw())
@@ -640,6 +656,9 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     # Explicit copy bindings for macOS/Windows/Linux.
     stats_txt.bind("<Command-c>", _copy_stats_selection)
     stats_txt.bind("<Control-c>", _copy_stats_selection)
+    # Global shortcut: always copy full stats text (even if canvas has focus).
+    win.bind("<Command-Shift-C>", _copy_stats_all)
+    win.bind("<Control-Shift-C>", _copy_stats_all)
     cmb_box_group.bind("<<ComboboxSelected>>", lambda _e: _draw())
     cmb_box_metric.bind("<<ComboboxSelected>>", lambda _e: _draw())
     _refresh_dynamic_controls()

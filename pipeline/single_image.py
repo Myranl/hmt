@@ -10,6 +10,7 @@ from ui.review_ui import review_and_maybe_edit  # type: ignore
 from segmentation.postprocess import smooth_fill_mask  # type: ignore
 from preproc.retina import downsample_rgb_cv2, enhance_contrast_and_smooth, retina_subtract_local_mean
 from ui.roi.run_ui_and_get_params import run_ui_and_get_params
+from ui.roi.bins_sketch_ui import run_bins_ui
 from preproc.quantize import sketch_three_bins, small_components_to_gray, apply_midline_cut_to_sketch
 
 from viz.overlay import _overlay_masks_on_original
@@ -117,24 +118,56 @@ def process_one_image(
     roi_ds = (x0, y0, x1, y1)
     roi_orig = roi_ds_to_orig(roi_ds, sx, sy)
 
-    # recompute ROI sketch
-    gray_roi = gray_used[y0:y1, x0:x1]
-
-    _, sketch_u8 = sketch_three_bins(gray_roi, t1=float(params["t1"]), t2=float(params["t2"]))
-    brain_roi = brain_mask_final[y0:y1, x0:x1]
-
-    sketch_u8 = apply_midline_cut_to_sketch(sketch_u8,brain_roi=brain_roi,midline_params=midline_params,roi_x0=int(x0), roi_y0=int(y0), thickness=9)
-    sketch_u8[~brain_roi] = 127
-    # stem = image_path.stem  # removed duplicate stem assignment
-
-    if bool(params.get("small_to_gray", False)):
-        sketch_u8 = small_components_to_gray(sketch_u8, min_area=int(params.get("small_N", 0)))
-
     bg_roi = img2_vis[y0:y1, x0:x1]
 
-    left_roi_sel, right_roi_sel, sketch_after = pick_hippocampus_and_split_by_midline(
-        sketch_u8_roi=sketch_u8, bg_roi_rgb=bg_roi,
-        midline_params=midline_params, roi_x0=int(x0), roi_y0=int(y0),)
+    def _rebuild_sketch_u8_from_params() -> np.ndarray:
+        gray_roi = gray_used[y0:y1, x0:x1]
+        _, sk = sketch_three_bins(gray_roi, t1=float(params["t1"]), t2=float(params["t2"]))
+        brain_roi = brain_mask_final[y0:y1, x0:x1]
+        sk = apply_midline_cut_to_sketch(
+            sk,
+            brain_roi=brain_roi,
+            midline_params=midline_params,
+            roi_x0=int(x0),
+            roi_y0=int(y0),
+            thickness=9,
+        )
+        sk = sk.copy()
+        sk[~brain_roi] = 127
+        if bool(params.get("small_to_gray", False)):
+            sk = small_components_to_gray(sk, min_area=int(params.get("small_N", 0)))
+        return sk
+
+    sketch_u8 = _rebuild_sketch_u8_from_params()
+
+    while True:
+        hp = pick_hippocampus_and_split_by_midline(
+            sketch_u8_roi=sketch_u8,
+            bg_roi_rgb=bg_roi,
+            midline_params=midline_params,
+            roi_x0=int(x0),
+            roi_y0=int(y0),
+        )
+        if hp == "edit_bins":
+            roi_tuple = (int(x0), int(y0), int(x1), int(y1))
+            bins_res = run_bins_ui(
+                gray=gray_used,
+                img_rgb=img2_vis,
+                roi=roi_tuple,
+                grid_on=bool(params.get("grid_on", False)),
+                grid_step=int(params.get("grid_step", 200)),
+                t1_init=float(params["t1"]),
+                t2_init=float(params["t2"]),
+            )
+            if bins_res is not None:
+                params["t1"] = float(bins_res["t1"])
+                params["t2"] = float(bins_res["t2"])
+                params["small_to_gray"] = bool(bins_res["small_to_gray"])
+                params["small_N"] = int(bins_res["small_N"])
+            sketch_u8 = _rebuild_sketch_u8_from_params()
+            continue
+        left_roi_sel, right_roi_sel, sketch_after = hp
+        break
 
     left_roi_sel, right_roi_sel = review_and_maybe_edit(
         img2_rgb=img2_vis, sketch_u8_roi=sketch_after, bg_roi=bg_roi,

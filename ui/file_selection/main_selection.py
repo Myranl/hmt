@@ -116,7 +116,10 @@ def run_folder_and_selection_ui(
 
     create_status_label(
         folder_frame,
-        text="The output folder will contain (or update) results.csv and last_selection.json.",
+        text=(
+            "The output folder will contain (or update) results.csv and last_selection.json. "
+            "OK also refreshes result_ok.csv when results.csv is present."
+        ),
         wraplength=540,
     ).grid(row=4, column=0, columnspan=3, sticky="w", pady=(12, 0))
 
@@ -173,15 +176,11 @@ def run_folder_and_selection_ui(
 
     run_bar = ctk.CTkFrame(main_frame, fg_color="transparent")
     run_bar.grid(row=3, column=0, sticky="ew", pady=(12, 10))
-    run_bar.columnconfigure(0, weight=1)
     run_bar.columnconfigure(1, weight=1)
-    run_bar.columnconfigure(2, weight=1)
     btn_cancel2 = create_secondary_button(run_bar, text="Cancel")
-    btn_reorganise = create_secondary_button(run_bar, text="Reorganise result")
     btn_show_graphs = create_secondary_button(run_bar, text="Show graphs")
     btn_run = create_primary_button(run_bar, text="Run selected", width=116, state="disabled")
     btn_cancel2.grid(row=0, column=0, sticky="w")
-    btn_reorganise.grid(row=0, column=1, sticky="e", padx=(0, 8))
     btn_show_graphs.grid(row=0, column=2, sticky="e", padx=(0, 8))
     btn_run.grid(row=0, column=3, sticky="e")
 
@@ -313,6 +312,16 @@ def run_folder_and_selection_ui(
         out_path = Path(var_out.get().strip()).expanduser().resolve()
         out_path.mkdir(parents=True, exist_ok=True)
         _write_results_meta(out_path, schema_version=RESULTS_SCHEMA_VERSION)
+        res_csv = out_path / "results.csv"
+        if res_csv.exists():
+            debug_print_results_head(str(out_path), rows=5)
+            ok_reorg, _reorg_path, _reorg_rows = reorganise_results_to_ok_csv(str(out_path))
+            if not ok_reorg:
+                messagebox.showwarning(
+                    "Reorganise result",
+                    "Could not save result_ok.csv. See terminal output for details.",
+                    parent=root,
+                )
         csv_path = out_path / "results.csv"
         processed = load_processed(csv_path)
         img_paths = iter_images(in_path, subfolders=bool(var_process_subfolders.get()))
@@ -380,35 +389,6 @@ def run_folder_and_selection_ui(
             json_module=_json,
         )
     )
-
-    def on_reorganise_result_debug() -> None:
-        out_dir = var_out.get().strip()
-        if not out_dir:
-            messagebox.showwarning("Reorganise result", "Please choose an output folder first.", parent=root)
-            return
-        ok_preview = debug_print_results_head(out_dir, rows=5)
-        ok_save, out_csv, rows_written = reorganise_results_to_ok_csv(out_dir)
-        if not ok_preview:
-            messagebox.showinfo(
-                "Reorganise result",
-                "results.csv was not found (or could not be read). See terminal output for details.",
-                parent=root,
-            )
-            return
-        if ok_save:
-            messagebox.showinfo(
-                "Reorganise result",
-                f"Saved reorganised file:\n{out_csv}\nRows: {rows_written}",
-                parent=root,
-            )
-        else:
-            messagebox.showwarning(
-                "Reorganise result",
-                "Could not save result_ok.csv. See terminal output for details.",
-                parent=root,
-            )
-
-    btn_reorganise.configure(command=on_reorganise_result_debug)
 
     def on_show_graphs() -> None:
         out_dir = var_out.get().strip()

@@ -1,21 +1,22 @@
 import numpy as np
-from ui.review_ui import review_and_maybe_edit  # type: ignore
-from segmentation.postprocess import smooth_fill_mask  # type: ignore
 from ui.roi.roi_picker_ui import run_roi_ui
-from ui.roi.bins_sketch_ui import run_bins_ui
 
-def run_ui_and_get_params(gray_used: np.ndarray, img2: np.ndarray, *, t1_init: float, t2_init: float) -> dict | None:
-    """Two-step UI.
+# Defaults aligned with `bins_sketch_ui` (3-bin tuning is opened from pick-hippocampus when needed).
+_DEFAULT_SMALL_N = 900
 
-    Step 1: pick ROI (drag on original) + grid settings.
-    Step 2: tune 3-bin sketch params on the fixed ROI.
+
+def run_ui_and_get_params(_gray_used: np.ndarray, img2: np.ndarray, *, t1_init: float, t2_init: float) -> dict | None:
+    """Pick ROI + grid settings only.
+
+    Initial 3-bin thresholds (t1/t2) and small-component settings use defaults; the user can open
+    the full 3-bin sketch UI from the pick-hippocampus step (closes pick → bins → pick reopens).
 
     Returns a dict with keys:
       t1,t2,x0,y0,x1,y1,small_to_gray,small_N,grid_on,grid_step
     or None if cancelled.
-    """
 
-    # ---- run step 1 ----
+    ``_gray_used`` is kept for a stable pipeline call signature (contrast is applied before ROI UI).
+    """
     roi_res = run_roi_ui(img_rgb=img2)
     if roi_res is None:
         return None
@@ -24,21 +25,15 @@ def run_ui_and_get_params(gray_used: np.ndarray, img2: np.ndarray, *, t1_init: f
     grid_on = bool(roi_res["grid_on"])
     grid_step = int(roi_res["grid_step"])
 
-    # ---- run step 2 ----
-    bins_res = run_bins_ui(  gray=gray_used, img_rgb=img2, roi=roi, grid_on=grid_on,  grid_step=grid_step,  t1_init=t1_init, t2_init=t2_init  )
-    if bins_res is None:
-        return None
-
-    out = {
-        "t1": float(bins_res["t1"]),
-        "t2": float(bins_res["t2"]),
+    return {
+        "t1": float(t1_init),
+        "t2": float(t2_init),
         "x0": int(roi[0]),
         "y0": int(roi[1]),
         "x1": int(roi[2]),
         "y1": int(roi[3]),
-        "small_to_gray": bool(bins_res["small_to_gray"]),
-        "small_N": int(bins_res["small_N"]),
+        "small_to_gray": True,
+        "small_N": int(_DEFAULT_SMALL_N),
         "grid_on": bool(grid_on),
         "grid_step": int(grid_step),
     }
-    return out

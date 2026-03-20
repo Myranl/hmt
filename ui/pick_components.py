@@ -15,6 +15,7 @@ from ui.common.widgets import (
     create_secondary_button,
 )
 from ui.file_selection.settings import load_folder_choices
+from ui.common.screen_layout import layout_screen_wh
 
 
 # Helper: select components on a background RGB image (CTk UI, same style as folders / brain outline)
@@ -25,12 +26,18 @@ def select_components_on_background(
     window: str,
     init_selected: np.ndarray | None = None,
     init_cuts=None,
+    init_adds=None,
     allow_open_bins_ui: bool = False,
-) -> Union[tuple[np.ndarray, np.ndarray], Literal["edit_bins"]]:
+) -> Union[
+    tuple[np.ndarray, np.ndarray, list[tuple[tuple[int, int], tuple[int, int]]], list[tuple[tuple[int, int], tuple[int, int]]]],
+    tuple[Literal["edit_bins"], np.ndarray, list[tuple[tuple[int, int], tuple[int, int]]], list[tuple[tuple[int, int], tuple[int, int]]]],
+]:
     """Click to toggle connected components. CTk UI: image card + controls (same style as brain outline).
 
-    If ``allow_open_bins_ui`` is True, a toolbar control opens the 3-bin sketch step: this window closes
-    and the caller should return ``\"edit_bins\"`` so the pipeline can run ``run_bins_ui`` and reopen pick.
+    On **Done**, returns ``(selected, sketch_after, cuts, adds)`` so callers (e.g. Review) can reopen
+    with the same Cut/Add strokes.
+
+    If ``allow_open_bins_ui`` is True, B returns ``(\"edit_bins\", selected, cuts, adds)``.
     """
 
     base0 = sketch_u8_roi.copy()
@@ -52,8 +59,21 @@ def select_components_on_background(
     pending_pt: tuple[int, int] | None = None
     cut_thickness = 7
     add_thickness = 7
-    cuts: list[tuple[tuple[int, int], tuple[int, int]]] = []
-    adds: list[tuple[tuple[int, int], tuple[int, int]]] = []
+
+    def _normalize_line_strokes(strokes) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+        if not strokes:
+            return []
+        out: list[tuple[tuple[int, int], tuple[int, int]]] = []
+        for item in strokes:
+            try:
+                p, q = item
+                out.append(((int(p[0]), int(p[1])), (int(q[0]), int(q[1]))))
+            except Exception:
+                continue
+        return out
+
+    cuts: list[tuple[tuple[int, int], tuple[int, int]]] = _normalize_line_strokes(init_cuts)
+    adds: list[tuple[tuple[int, int], tuple[int, int]]] = _normalize_line_strokes(init_adds)
     undo_stack: list[tuple[str, object]] = []
 
     def recompute_labels() -> tuple[np.ndarray, np.ndarray]:
@@ -114,9 +134,17 @@ def select_components_on_background(
     # --- CTk layout (toolbar + dark canvas + stats; wheel zoom, space+drag pan) ---
     setup_theme()
     parent = tk._default_root
+    root: ctk.CTk | ctk.CTkToplevel
     if parent is not None and isinstance(parent, ctk.CTk):
-        root = ctk.CTkToplevel(parent)
-        root.transient(parent)
+        try:
+            if bool(parent.winfo_exists()):
+                root = ctk.CTkToplevel(parent)
+                root.transient(parent)
+            else:
+                # Stale default root after a destroyed window — Toplevel would not show (Windows).
+                root = ctk.CTk()
+        except Exception:
+            root = ctk.CTk()
     else:
         root = ctk.CTk()
     root.title(window)
@@ -131,11 +159,7 @@ def select_components_on_background(
         pass
 
     img_h, img_w = int(base.shape[0]), int(base.shape[1])
-    try:
-        screen_w = int(root.winfo_screenwidth())
-        screen_h = int(root.winfo_screenheight())
-    except Exception:
-        screen_w, screen_h = 1400, 900
+    screen_w, screen_h = layout_screen_wh(root)
 
     # Layout constants (second-screen style)
     HDR_H = 52
@@ -304,6 +328,11 @@ def select_components_on_background(
     result: list[tuple[np.ndarray, np.ndarray] | None] = [None]
     cancelled = [False]
     edit_bins_redirect = [False]
+    # Snapshot (selected, cuts, adds) when user opens 3-bin sketch, for reopening pick.
+    edit_bins_preserved: list[
+        tuple[np.ndarray, list[tuple[tuple[int, int], tuple[int, int]]], list[tuple[tuple[int, int], tuple[int, int]]]]
+        | None
+    ] = [None]
     space_held = [False]
     pan_drag = [False]
     tk_img_ref: dict = {}
@@ -421,6 +450,9 @@ def select_components_on_background(
             root.grab_release()
         except Exception:
             pass
+        # Do NOT call root.quit() here: Tcl shares one interpreter; quit() marks "exit mainloop"
+        # globally and the *next* window's mainloop()/event loop can return immediately (Review
+        # skipped → batch jumps to the next image).
         root.destroy()
 
     def do_cancel() -> None:
@@ -482,6 +514,11 @@ def select_components_on_background(
     def do_open_bins_ui() -> None:
         """Close pick UI; pipeline opens 3-bin sketch, then returns here (like brain outline ↔ threshold)."""
         edit_bins_redirect[0] = True
+        edit_bins_preserved[0] = (
+            selected.copy(),
+            [((int(a[0]), int(a[1])), (int(b[0]), int(b[1]))) for a, b in cuts],
+            [((int(a[0]), int(a[1])), (int(b[0]), int(b[1]))) for a, b in adds],
+        )
         try:
             root.grab_release()
         except Exception:
@@ -627,18 +664,41 @@ def select_components_on_background(
 
     _sync_badge_and_tools()
     _refresh()
+    # Show hints (helps CTk appear after a prior window was destroyed, esp. on Windows).
+    # Do NOT call mainloop() here: CTk schedules many `after` callbacks; mainloop+destroy can
+    # leave stale Tcl commands and break the *next* UI (e.g. Review on plain tk.Tk).
+    root.update_idletasks()
+    root.deiconify()
+    root.lift()
+    try:
+        root.focus_force()
+    except Exception:
+        pass
     root.wait_window(root)
 
-    if edit_bins_redirect[0]:
-        return "edit_bins"
+    def _stroke_lists() -> tuple[list[tuple[tuple[int, int], tuple[int, int]]], list[tuple[tuple[int, int], tuple[int, int]]]]:
+        return (
+            [((int(a[0]), int(a[1])), (int(b[0]), int(b[1]))) for a, b in cuts],
+            [((int(a[0]), int(a[1])), (int(b[0]), int(b[1]))) for a, b in adds],
+        )
 
+    if edit_bins_redirect[0]:
+        snap = edit_bins_preserved[0]
+        if snap is not None:
+            s, c, a = snap
+            return ("edit_bins", s, c, a)
+        z = np.zeros(base.shape[:2], dtype=np.uint8)
+        return ("edit_bins", z, [], [])
+
+    cc, aa = _stroke_lists()
     if cancelled[0] and result[0] is not None:
         out_sel, out_base = result[0]
         out_sel[:] = 0
-        return out_sel, out_base
+        return out_sel, out_base, cc, aa
     if result[0] is not None:
-        return result[0]
-    return selected, base
+        rs, rb = result[0]
+        return rs, rb, cc, aa
+    return selected, base, cc, aa
 
 def pick_hippocampus_and_split_by_midline(
     *,
@@ -648,13 +708,19 @@ def pick_hippocampus_and_split_by_midline(
     roi_x0: int,
     roi_y0: int,
     window: str = "Pick hippocampus components (green)",
-) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Literal["edit_bins"]]:
+    init_selected: np.ndarray | None = None,
+    init_cuts=None,
+    init_adds=None,
+) -> Union[
+    Tuple[np.ndarray, np.ndarray, np.ndarray],
+    Tuple[Literal["edit_bins"], np.ndarray, list, list],
+]:
     """
     1) Let user click connected components on sketch within ROI (returns sel_roi, sketch_after).
     2) Split sel_roi into left/right hemispheres using midline points (from full-image coords).
     Returns: (left_roi_sel_u8, right_roi_sel_u8, sketch_after_u8), all in ROI coords,
-    or the literal ``\"edit_bins\"`` if the user chose to adjust 3-bin thresholds (pipeline should
-    run ``run_bins_ui`` and call this again).
+    or ``(\"edit_bins\", selected, cuts, adds)`` if the user opened 3-bin sketch (pipeline should
+    run ``run_bins_ui`` and call this again with those inits).
     """
 
     picked = select_components_on_background(
@@ -662,10 +728,13 @@ def pick_hippocampus_and_split_by_midline(
         bg_roi_rgb,
         window=window,
         allow_open_bins_ui=True,
+        init_selected=init_selected,
+        init_cuts=init_cuts,
+        init_adds=init_adds,
     )
-    if picked == "edit_bins":
-        return "edit_bins"
-    sel_roi_u8, sketch_after = picked
+    if isinstance(picked, tuple) and len(picked) == 4 and isinstance(picked[0], str) and picked[0] == "edit_bins":
+        return picked
+    sel_roi_u8, sketch_after, _, _ = picked
     sel = (sel_roi_u8 > 0)
 
     # Parse and shift midline points into ROI coords

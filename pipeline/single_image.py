@@ -140,6 +140,10 @@ def process_one_image(
 
     sketch_u8 = _rebuild_sketch_u8_from_params()
 
+    preserved_sel: np.ndarray | None = None
+    preserved_cuts: list | None = None
+    preserved_adds: list | None = None
+
     while True:
         hp = pick_hippocampus_and_split_by_midline(
             sketch_u8_roi=sketch_u8,
@@ -147,8 +151,12 @@ def process_one_image(
             midline_params=midline_params,
             roi_x0=int(x0),
             roi_y0=int(y0),
+            init_selected=preserved_sel,
+            init_cuts=preserved_cuts,
+            init_adds=preserved_adds,
         )
-        if hp == "edit_bins":
+        if isinstance(hp, tuple) and len(hp) == 4 and hp[0] == "edit_bins":
+            _, preserved_sel, preserved_cuts, preserved_adds = hp
             roi_tuple = (int(x0), int(y0), int(x1), int(y1))
             bins_res = run_bins_ui(
                 gray=gray_used,

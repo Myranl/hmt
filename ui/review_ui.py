@@ -1,11 +1,17 @@
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image
 import cv2
-import tkinter as tk
-from tkinter import ttk
-from PIL import ImageTk
+import customtkinter as ctk  # type: ignore[import-untyped]
+
 from ui.pick_components import select_components_on_background
 from segmentation.postprocess import smooth_fill_mask
+from ui.common.theme import setup_theme, get_base_font
+from ui.common.widgets import (
+    create_card_frame,
+    create_primary_button,
+    create_secondary_button,
+)
+
 
 def review_and_maybe_edit(
     *,
@@ -21,6 +27,8 @@ def review_and_maybe_edit(
     """Show overlay with edit and save buttons.
 
     When re-picking, we seed the picker with the previous (left∪right) selection and reuse any existing CUT lines. The updated selection is then split into left/right automatically.
+
+    Uses **CustomTkinter** (same as the rest of the pipeline). A plain ``tk.Tk()`` here caused Tcl errors / crashes right after the CTk hippocampus picker closed.
 
     Returns updated (left_roi_sel, right_roi_sel) in ROI coordinates.
     """
@@ -43,29 +51,28 @@ def review_and_maybe_edit(
     cur_right = right_roi_sel.copy()
     cur_sketch = sketch_u8_roi.copy()
 
-    # keep track of CUT lines so re-pick doesn't forget them
+    # Cut/Add strokes for re-opening the picker (must match select_components return)
     cur_cuts: list[tuple[tuple[int, int], tuple[int, int]]] = []
+    cur_adds: list[tuple[tuple[int, int], tuple[int, int]]] = []
 
-    root = tk.Tk()
+    setup_theme()
+    root = ctk.CTk()
     root.title("Review hippocampus")
+    root.configure(fg_color="white")
+    root.minsize(720, 520)
 
-    frm = ttk.Frame(root, padding=10)
-    frm.grid(row=0, column=0, sticky="nsew")
-    root.rowconfigure(0, weight=1)
-    root.columnconfigure(0, weight=1)
+    card = create_card_frame(root)
+    card.pack(fill="both", expand=True, padx=16, pady=16)
+    card.columnconfigure(0, weight=1)
+    card.rowconfigure(1, weight=1)
 
-    # Top control row (always visible)
-    btn_row = ttk.Frame(frm)
-    btn_row.grid(row=0, column=0, sticky="w", pady=(0, 8))
+    btn_row = ctk.CTkFrame(card, fg_color="transparent")
+    btn_row.grid(row=0, column=0, sticky="ew", pady=(0, 8))
 
-    # Image below
-    lbl = ttk.Label(frm)
+    lbl = ctk.CTkLabel(card, text="")
     lbl.grid(row=1, column=0, sticky="nsew")
 
-    frm.rowconfigure(1, weight=1)
-    frm.columnconfigure(0, weight=1)
-
-    state = {"photo": None}
+    state: dict = {"ctk_img": None}
 
     def make_overlay_u8() -> np.ndarray:
         # Build full-res overlays then crop for display
@@ -110,22 +117,29 @@ def review_and_maybe_edit(
         if s > max_side:
             scale = max_side / float(s)
             im = im.resize((int(round(w * scale)), int(round(h * scale))), resample=Image.Resampling.BILINEAR)
+            w, h = im.size
 
-        state["photo"] = ImageTk.PhotoImage(im)
-        lbl.configure(image=state["photo"])
+        ctk_img = ctk.CTkImage(light_image=im, dark_image=im, size=(w, h))
+        state["ctk_img"] = ctk_img
+        lbl.configure(image=ctk_img, text="")
 
     def edit_selection() -> None:
-        nonlocal cur_left, cur_right, cur_sketch, cur_cuts
+        nonlocal cur_left, cur_right, cur_sketch, cur_cuts, cur_adds
 
         # pick components once (user does not care about left/right here)
         init_union = (cur_left.astype(bool) | cur_right.astype(bool)).astype(np.uint8)
-        sel_roi, cur_sketch = select_components_on_background(
+        out = select_components_on_background(
             cur_sketch,
             bg_roi,
             window="Re-pick hippocampus (green)",
             init_selected=init_union,
             init_cuts=cur_cuts,
+            init_adds=cur_adds,
         )
+        if isinstance(out, tuple) and len(out) == 4 and isinstance(out[0], str) and out[0] == "edit_bins":
+            # B / 3-bin is disabled in Review; should not happen.
+            return
+        sel_roi, cur_sketch, cur_cuts, cur_adds = out
 
         # split automatically by overlap with previous left/right (fallback: x-centroid)
         sel_roi = (sel_roi > 0).astype(np.uint8)
@@ -161,17 +175,37 @@ def review_and_maybe_edit(
         cur_left = new_left
         cur_right = new_right
         refresh()
+        try:
+            root.lift()
+            root.focus_force()
+        except Exception:
+            pass
+        try:
+            root.update_idletasks()
+            root.update()
+        except Exception:
+            pass
 
     def save_and_close() -> None:
         root.destroy()
 
-    ttk.Button(btn_row, text="Edit", command=edit_selection).grid(row=0, column=0, padx=(0, 8))
-    ttk.Button(btn_row, text="Save", command=save_and_close).grid(row=0, column=1)
+    bf = get_base_font()
+    create_secondary_button(btn_row, text="Edit", command=edit_selection, font=bf).pack(side="left", padx=(0, 8))
+    create_primary_button(btn_row, text="Save", command=save_and_close, font=bf).pack(side="left")
 
-    # Button-driven only (avoid accidental Enter)
     root.bind("<Escape>", lambda _e: save_and_close())
 
     refresh()
-    root.mainloop()
+    root.update_idletasks()
+    root.deiconify()
+    root.lift()
+    try:
+        root.focus_force()
+    except Exception:
+        pass
+    # Same as hippocampus picker: wait until Save/Escape — NOT mainloop(). After pick closes,
+    # a stray Tcl "quit" flag or nested mainloop issues can make mainloop() return at once and
+    # the batch pipeline continues to the next image without showing Review.
+    root.wait_window(root)
 
     return cur_left, cur_right

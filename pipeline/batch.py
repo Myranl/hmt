@@ -177,7 +177,11 @@ def process_paths(
             try:
                 res = process_one_image(p, out_dir=out)
                 rows_for_image = _to_rows(res, image_path=p)
-            except Exception:
+            except Exception as e:
+                print(f"Error processing image {p}: {e}")
+                import traceback
+                traceback.print_exc()
+                raise # Re-raise the exception to see the full traceback
                 rows_for_image = [{
                     "image_path": str(p),
                     "img_name": p.name,

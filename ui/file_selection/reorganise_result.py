@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 import csv
 import json
+import os
+import time
 
 
 def _try_parse_json_string(value: object) -> object:
@@ -180,14 +182,53 @@ def reorganise_results_to_ok_csv(out_dir: str) -> tuple[bool, str, int]:
                     rows_no_key.append(canon)
 
         ordered_rows = rows_no_key + list(rows_by_key.values())
-        with dst.open("w", encoding="utf-8", newline="") as f:
+
+        def _write_rows_to_file(f) -> None:
             wr = csv.DictWriter(f, fieldnames=CANONICAL_HEADERS)
             wr.writeheader()
             for rec in ordered_rows:
                 wr.writerow({h: rec.get(h, "") for h in CANONICAL_HEADERS})
 
-        print(f"[Reorganise result] Saved: {dst} (rows={len(ordered_rows)})")
-        return True, str(dst), len(ordered_rows)
+        # Windows often returns PermissionError if result_ok.csv is open in Excel/Sheets,
+        # or briefly while OneDrive/antivirus locks the file. Temp + replace avoids a
+        # half-written CSV if the process crashes mid-write.
+        tmp = dst.with_name(dst.name + ".tmp")
+        last_exc: Exception | None = None
+        for delay in (0.0, 0.06, 0.18, 0.45, 0.9):
+            if delay > 0:
+                time.sleep(delay)
+            try:
+                with tmp.open("w", encoding="utf-8", newline="") as f:
+                    _write_rows_to_file(f)
+                os.replace(tmp, dst)
+                print(f"[Reorganise result] Saved: {dst} (rows={len(ordered_rows)})")
+                return True, str(dst), len(ordered_rows)
+            except (PermissionError, OSError) as exc:
+                last_exc = exc
+                try:
+                    if tmp.exists():
+                        tmp.unlink()
+                except OSError:
+                    pass
+            except Exception:
+                try:
+                    if tmp.exists():
+                        tmp.unlink()
+                except OSError:
+                    pass
+                raise
+
+        if last_exc is not None:
+            raise last_exc
+        return False, str(dst), 0
+    except PermissionError as exc:
+        print(
+            f"[Reorganise result] Permission denied writing {dst}:\n"
+            f"  {exc}\n"
+            "  Hint: close result_ok.csv if it is open in Excel or another app; "
+            "check the output folder is writable and not blocked by sync/antivirus."
+        )
+        return False, str(dst), 0
     except Exception as exc:
         print(f"[Reorganise result] Failed to save {dst}: {exc}")
         return False, str(dst), 0

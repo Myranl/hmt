@@ -300,7 +300,10 @@ def run_folder_and_selection_ui(
             if not ok_reorg:
                 messagebox.showwarning(
                     "Reorganise result",
-                    "Could not save result_ok.csv. See terminal output for details.",
+                    "Could not save result_ok.csv.\n\n"
+                    "Typical on Windows: the file is open in Excel (or another program) — close it.\n"
+                    "Also check: folder not read-only; OneDrive/antivirus not locking the file.\n"
+                    "Details are printed in the terminal.",
                     parent=root,
                 )
         csv_path = out_path / "results.csv"

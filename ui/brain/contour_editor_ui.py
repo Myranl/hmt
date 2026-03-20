@@ -483,6 +483,15 @@ def edit_contour_ui(
     set_mode("break")
     root.update_idletasks()
     _refresh()
-    root.wait_window()
+    # On Windows, a fresh CTk() after the previous step's window was destroyed often
+    # stays invisible with wait_window(); mainloop + explicit show matches midline_ui.
+    root.update_idletasks()
+    root.deiconify()
+    root.lift()
+    try:
+        root.focus_force()
+    except Exception:
+        pass
+    root.mainloop()
 
     return result_container[0], result_params

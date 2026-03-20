@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw, ImageTk
 import customtkinter as ctk  # type: ignore[import-untyped]
 
 from ui.common.theme import setup_theme, get_base_font, get_small_muted_font
+from ui.common.screen_layout import layout_screen_wh
 from ui.common.widgets import (
     create_card_frame,
     create_primary_button,
@@ -92,11 +93,7 @@ def run_roi_ui(*, img_rgb: np.ndarray) -> dict | None:
     root.grid_rowconfigure(1, weight=0)
 
     img_h, img_w = int(img_rgb.shape[0]), int(img_rgb.shape[1])
-    try:
-        screen_w = int(root.winfo_screenwidth())
-        screen_h = int(root.winfo_screenheight())
-    except Exception:
-        screen_w, screen_h = 1400, 900
+    screen_w, screen_h = layout_screen_wh(root)
 
     HDR_H = 56
     FTR_ROW = 44

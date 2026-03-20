@@ -154,6 +154,9 @@ def select_components_on_background(
     # Canvas viewport: never force a min height > image (was max(420,…) → black band below bitmap)
     initial_canvas_h = max(80, min(max_body_h, nat_canvas_h))
     viewport_w = int(target_canvas_w)
+    # Keep canvas viewport size fixed when zooming: only scrollregion grows. Using max_body_h here
+    # made ch jump up to ~full screen on zoom and pushed the footer below the window.
+    canvas_viewport_h_max = int(initial_canvas_h)
 
     zoom_mul = [1.0]  # multiplier on top of fit-to-width scale
     disp_scale = [fit_scale * zoom_mul[0]]
@@ -191,7 +194,7 @@ def select_components_on_background(
 
     # -------- Header --------
     header = ctk.CTkFrame(root, fg_color="transparent")
-    header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=18, pady=(16, 8))
+    header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=18, pady=(10, 6))
     header.grid_columnconfigure(1, weight=1)
 
     ctk.CTkLabel(
@@ -336,9 +339,9 @@ def select_components_on_background(
         n_sel = int((selected > 0).sum())
         header_sel.configure(text=_header_selection_text(n_sel))
         _sync_badge_and_tools()
-        # Snug viewport to scaled image so we don't show empty canvas (black) below/ beside it
+        # Snug to image when smaller than caps; never grow height past opening viewport (zoom → scroll)
         cw = int(min(viewport_w, max(1, dw)))
-        ch = int(min(max_body_h, max(1, dh)))
+        ch = int(min(canvas_viewport_h_max, max(1, dh)))
         canvas.configure(width=cw, height=ch)
         rgb = cv2.cvtColor(disp, cv2.COLOR_BGR2RGB)
         pil = Image.fromarray(rgb)

@@ -126,6 +126,9 @@ def midline_ui(
     }
 
     HANDLE_R = 14
+    MAX_UPSCALE = 4.0
+    # Image top-left offset in canvas (when ROI fits in viewport — centered)
+    view_off: list[int] = [0, 0]
 
     def redraw() -> np.ndarray:
         d = disp_base.copy()
@@ -175,14 +178,14 @@ def midline_ui(
         except Exception:
             pass
     root.title(window)
-    root.minsize(900, 580)
+    root.minsize(880, 560)
     root.configure(fg_color="white")
     root.grid_columnconfigure(0, weight=1)
     root.grid_rowconfigure(0, weight=1)
 
     # Single main card: controls on top/bottom, image in the middle
     img_card = create_card_frame(root)
-    img_card.grid(row=0, column=0, sticky="nsew", padx=18, pady=18)
+    img_card.grid(row=0, column=0, sticky="nsew", padx=16, pady=(4, 12))
     img_card.columnconfigure(0, weight=1)
     img_card.rowconfigure(1, weight=1)  # canvas grows
 
@@ -190,10 +193,10 @@ def midline_ui(
 
     # Top bar: title + instructions + Undo / Reset on the right
     top_bar = ctk.CTkFrame(img_card, fg_color="transparent")
-    top_bar.grid(row=0, column=0, sticky="ew", padx=18, pady=(14, 8))
+    top_bar.grid(row=0, column=0, sticky="ew", padx=14, pady=(4, 4))
     top_bar.columnconfigure(0, weight=1)
     top_left = ctk.CTkFrame(top_bar, fg_color="transparent")
-    top_left.grid(row=0, column=0, sticky="w")
+    top_left.grid(row=0, column=0, sticky="nw")
     ctk.CTkLabel(top_left, text="Midline", font=ctk.CTkFont(size=16, weight="bold")).grid(
         row=0, column=0, sticky="w"
     )
@@ -201,15 +204,15 @@ def midline_ui(
         top_left,
         text="Drag points to adjust the midline. Click on the line to add points.",
         wraplength=360,
-    ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+    ).grid(row=1, column=0, sticky="w", pady=(0, 0))
 
     status_var = tk.StringVar(value="")
     ctk.CTkLabel(top_left, textvariable=status_var, font=base_font, text_color="gray50").grid(
-        row=2, column=0, sticky="w", pady=(4, 0)
+        row=2, column=0, sticky="w", pady=(2, 0)
     )
 
     tools_bar = ctk.CTkFrame(top_bar, fg_color="transparent")
-    tools_bar.grid(row=0, column=1, sticky="e", padx=(12, 0))
+    tools_bar.grid(row=0, column=1, sticky="ne", padx=(12, 0))
     tools_bar.columnconfigure(0, weight=1)
     tools_bar.columnconfigure(1, weight=1)
     btn_undo = create_secondary_button(tools_bar, text="Undo", command=lambda: None)
@@ -234,7 +237,7 @@ def midline_ui(
 
     # Bottom: Skip (left) / Accept (right)
     actions = ctk.CTkFrame(img_card, fg_color="transparent")
-    actions.grid(row=2, column=0, sticky="ew", padx=18, pady=(10, 4))
+    actions.grid(row=2, column=0, sticky="ew", padx=18, pady=(6, 4))
     actions.columnconfigure(0, weight=1)
     actions.columnconfigure(1, weight=1)
     btn_skip = create_secondary_button(actions, text="Skip", command=lambda: None)
@@ -254,9 +257,12 @@ def midline_ui(
         screen_h = int(root.winfo_screenheight())
     except Exception:
         screen_w, screen_h = 1400, 900
-    win_w = max(900, int(screen_w * 0.75))
-    win_h = max(580, int(screen_h * 0.75))
-    root.geometry(f"{win_w}x{win_h}")
+    # Compact default, capped to screen (similar to bins UI)
+    win_w = max(920, min(screen_w - 80, 1240))
+    win_h = max(600, min(screen_h - 100, 860))
+    win_w = min(win_w, screen_w - 24)
+    win_h = min(win_h, screen_h - 24)
+    root.geometry(f"{win_w}x{win_h}+{(screen_w - win_w) // 2}+{(screen_h - win_h) // 2}")
 
     def _get_canvas_size() -> tuple[int, int]:
         cw = canvas_holder.winfo_width() or 700
@@ -280,32 +286,52 @@ def midline_ui(
     def _refresh() -> None:
         nonlocal disp_scale, disp_w, disp_h
         cw, ch = _get_canvas_size()
-        disp_scale = min(1.0, cw / float(w), ch / float(h))
-        disp_w = int(round(w * disp_scale))
-        disp_h = int(round(h * disp_scale))
+        # Fit ROI into viewport; allow upscale (capped) so small crops don't sit in a grey sea
+        fit_scale = min(cw / float(max(w, 1)), ch / float(max(h, 1)))
+        disp_scale = min(fit_scale, MAX_UPSCALE)
+        disp_w = int(max(1, round(w * disp_scale)))
+        disp_h = int(max(1, round(h * disp_scale)))
         canvas.configure(width=cw, height=ch)
         disp = redraw()
-        if disp_scale < 1.0:
-            disp = cv2.resize(disp, (disp_w, disp_h), interpolation=cv2.INTER_NEAREST)
+        if disp_w != w or disp_h != h:
+            interp = cv2.INTER_LINEAR if (disp_w > w or disp_h > h) else cv2.INTER_NEAREST
+            disp = cv2.resize(disp, (disp_w, disp_h), interpolation=interp)
         pts_n = len(state["pts"]) if state["poly_mode"] else 2
         status_var.set(f"points={pts_n}")
         rgb = cv2.cvtColor(disp, cv2.COLOR_BGR2RGB)
         pil = Image.fromarray(rgb)
         tk_img = ImageTk.PhotoImage(pil, master=root)
         tk_img_ref["img"] = tk_img
+        fits = disp_w <= cw and disp_h <= ch
+        if fits:
+            view_off[0] = max(0, (cw - disp_w) // 2)
+            view_off[1] = max(0, (ch - disp_h) // 2)
+            scroll_x.grid_remove()
+            scroll_y.grid_remove()
+            canvas.configure(scrollregion=(0, 0, cw, ch))
+            canvas.xview_moveto(0)
+            canvas.yview_moveto(0)
+        else:
+            view_off[0] = 0
+            view_off[1] = 0
+            scroll_x.grid(row=1, column=0, sticky="ew")
+            scroll_y.grid(row=0, column=1, sticky="ns")
+            canvas.configure(scrollregion=(0, 0, disp_w, disp_h))
         if not canvas_img_id:
-            canvas_img_id.append(canvas.create_image(0, 0, anchor="nw", image=tk_img))
+            canvas_img_id.append(
+                canvas.create_image(view_off[0], view_off[1], anchor="nw", image=tk_img)
+            )
         else:
             canvas.itemconfigure(canvas_img_id[0], image=tk_img)
-        canvas.configure(scrollregion=(0, 0, disp_w, disp_h))
+            canvas.coords(canvas_img_id[0], view_off[0], view_off[1])
 
     def _canvas_xy(ev) -> tuple[int, int] | None:
-        cx = canvas.canvasx(ev.x)
-        cy = canvas.canvasy(ev.y)
+        cx = canvas.canvasx(ev.x) - view_off[0]
+        cy = canvas.canvasy(ev.y) - view_off[1]
         if cx < 0 or cy < 0 or cx >= disp_w or cy >= disp_h:
             return None
-        ix = int(round(cx / disp_scale)) if disp_scale > 0 else int(cx)
-        iy = int(round(cy / disp_scale)) if disp_scale > 0 else int(cy)
+        ix = int(round(cx * w / float(disp_w)))
+        iy = int(round(cy * h / float(disp_h)))
         return (min(max(ix, 0), w - 1), min(max(iy, 0), h - 1))
 
     def on_press(ev) -> None:

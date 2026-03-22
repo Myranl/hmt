@@ -298,6 +298,13 @@ def run_folder_and_selection_ui(
         _write_results_meta(out_path, schema_version=RESULTS_SCHEMA_VERSION)
         res_csv = out_path / "results.csv"
         if res_csv.exists():
+            # Merge category_assignments.json into every row (retroactive); pipeline only merges on new writes.
+            try:
+                from pipeline.batch import refresh_results_csv_categories
+
+                refresh_results_csv_categories(str(out_path))
+            except Exception as exc:
+                print(f"[Categories] Could not refresh results.csv: {exc}")
             debug_print_results_head(str(out_path), rows=5)
             ok_reorg, _reorg_path, _reorg_rows = reorganise_results_to_ok_csv(str(out_path))
             if not ok_reorg:

@@ -151,8 +151,12 @@ def run_category_editor_ui(parent: ctk.CTk | None, *, input_dir: str, output_dir
     sy = ttk.Scrollbar(tree_fr, orient="vertical", command=tv.yview)
     sy.grid(row=0, column=1, sticky="ns")
     tv.configure(yscrollcommand=sy.set)
-    tv.tag_configure("assigned", foreground="#6b7280")
-    tv.tag_configure("todo", foreground="#111827")
+    # Files (active column): green = value resolved, gray = still missing for this column
+    tv.tag_configure("assigned", foreground="#047857")
+    tv.tag_configure("todo", foreground="#9ca3af")
+    # Folders: explicit rows in category_assignments.json for this folder path
+    tv.tag_configure("folder_explicit", foreground="#047857")
+    tv.tag_configure("folder_plain", foreground="#9ca3af")
 
     # --- Right panel ---
     right = ctk.CTkFrame(body, fg_color="transparent")
@@ -333,6 +337,25 @@ def run_category_editor_ui(parent: ctk.CTk | None, *, input_dir: str, output_dir
                 out.append(r)
         return out
 
+    def _folder_has_explicit_assignment(st: CategoryStore, folder_rel: str) -> bool:
+        row = st.assignments.get(folder_rel) or {}
+        return any(str(row.get(c.id, "")).strip() for c in st.columns)
+
+    def _format_item_label(st: CategoryStore, rel_key: str, *, is_folder: bool) -> str:
+        """Show folder/file name + [val]… from explicit JSON row, or · if no row for this key."""
+        base = Path(rel_key).name if rel_key else ""
+        row = st.assignments.get(rel_key) or {}
+        parts: list[str] = []
+        for c in st.columns:
+            v = str(row.get(c.id, "")).strip()
+            if v:
+                parts.append(f"[{v}]")
+        if parts:
+            return f"{base}  {' '.join(parts)}"
+        if is_folder:
+            return f"{base}  ·"
+        return base
+
     def refresh_tree() -> None:
         tv.delete(*tv.get_children())
         rel_files = all_rel_files()
@@ -352,36 +375,28 @@ def run_category_editor_ui(parent: ctk.CTk | None, *, input_dir: str, output_dir
 
         for d in dirs:
             par = _parent_rel(d)
-            name = Path(d).name
-            tv.insert(par if tv.exists(par) else "", "end", iid=d, text=name, open=True)
+            ftag = "folder_explicit" if _folder_has_explicit_assignment(st, d) else "folder_plain"
+            label = _format_item_label(st, d, is_folder=True)
+            tv.insert(par if tv.exists(par) else "", "end", iid=d, text=label, open=True, tags=(ftag,))
 
         for rf in sorted(rel_files, key=str.lower):
             par = _parent_rel(rf) or ""
-            name = Path(rf).name
             if state["store"].granularity == "leaf_folder":
                 if not tv.exists(par):
                     continue
                 tag = tag_for_file(rf)
                 if tv.exists(rf):
                     continue
-                tv.insert(par if tv.exists(par) else "", "end", iid=rf, text=name, tags=(tag,))
+                flabel = _format_item_label(st, rf, is_folder=False)
+                tv.insert(par if tv.exists(par) else "", "end", iid=rf, text=flabel, tags=(tag,))
             else:
                 p_par = par
                 if not p_par:
                     p_par = ""
                 if p_par and not tv.exists(p_par):
                     continue
-                tv.insert(p_par if tv.exists(p_par) else "", "end", iid=rf, text=name, tags=(tag_for_file(rf),))
-
-        if state["store"].granularity == "leaf_folder":
-            for d in dirs:
-                if not folder_has_files_in_tree(d, rel_files):
-                    continue
-                tag = folder_tag_assigned(d, col_id, st, root, rel_files)
-                try:
-                    tv.item(d, tags=(tag,))
-                except tk.TclError:
-                    pass
+                flabel = _format_item_label(st, rf, is_folder=False)
+                tv.insert(p_par if tv.exists(p_par) else "", "end", iid=rf, text=flabel, tags=(tag_for_file(rf),))
 
     def folder_has_files_in_tree(folder_rel: str, rel_files: list[str]) -> bool:
         prefix = folder_rel + "/"
@@ -389,17 +404,6 @@ def run_category_editor_ui(parent: ctk.CTk | None, *, input_dir: str, output_dir
             if rf == folder_rel or rf.startswith(prefix):
                 return True
         return False
-
-    def folder_tag_assigned(folder_rel: str, col_id: str, st: CategoryStore, root: Path, rel_files: list[str]) -> str:
-        if not col_id:
-            return "todo"
-        prefix = folder_rel + "/"
-        for rf in rel_files:
-            if rf == folder_rel or rf.startswith(prefix):
-                abs_p = root / rf
-                if not str(resolve_labels_for_image(st, abs_p).get(col_id, "")).strip():
-                    return "todo"
-        return "assigned"
 
     def apply_to_folder_auto(folder_rel: str) -> None:
         col = current_column()
@@ -579,7 +583,8 @@ def run_category_editor_ui(parent: ctk.CTk | None, *, input_dir: str, output_dir
     foot.grid(row=2, column=0, sticky="ew", pady=(10, 0))
     ctk.CTkLabel(
         foot,
-        text="Double-click a folder in Auto mode to assign. Saves to category_assignments.json in the output folder; new results.csv rows pick these up automatically.",
+        text="Tree: green + […] = saved rule on this folder; gray + · = no rule here yet. "
+        "Files: green = active column filled; gray = missing. Save → JSON; Close / OK → refresh results.csv.",
         font=small,
         text_color="gray45",
         wraplength=900,
@@ -594,7 +599,19 @@ def run_category_editor_ui(parent: ctk.CTk | None, *, input_dir: str, output_dir
             messagebox.showerror("Categories", str(e), parent=top)
 
     create_primary_button(foot, text="Save", command=on_save, width=88).pack(side="right", padx=(8, 0))
-    create_secondary_button(foot, text="Close", command=top.destroy, width=88).pack(side="right")
+
+    def on_close() -> None:
+        try:
+            from pipeline.batch import refresh_results_csv_categories
+
+            ok, msg = refresh_results_csv_categories(str(out_root))
+            if not ok:
+                print(f"[Categories] results.csv refresh: {msg}")
+        except Exception as exc:
+            print(f"[Categories] results.csv refresh skipped: {exc}")
+        top.destroy()
+
+    create_secondary_button(foot, text="Close", command=on_close, width=88).pack(side="right")
 
     var_sub = tk.BooleanVar(value=True)
 

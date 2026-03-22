@@ -1,7 +1,7 @@
 {
   "version": 1,
   "input_root": "/Users/kseniialavrova/Documents/projects/HISTOLOGY/input",
-  "granularity": "leaf_folder",
+  "granularity": "file",
   "columns": [
     {
       "id": "sex",
@@ -140,6 +140,9 @@
     },
     "TB_P90/males/G01": {
       "dose": "lps"
+    },
+    "TB_P90": {
+      "sex": "F"
     }
   }
 }

@@ -7,6 +7,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 import numpy as np
+from config import CATEGORIES_STORE_NAME
+from core.categories import load_store, merge_row_with_categories
+from core.categories.schema import CategoryStore
 from ui.file_selection.reorganise_result import reorganise_results_to_ok_csv
 from ui.file_selection.settings import load_folder_choices, persist_graph_units_settings
 
@@ -49,6 +52,82 @@ ALLOWED_SCATTER_PAIRS = {
     ("midline_perimeter_left_px", "midline_perimeter_right_px"),
 }
 
+# Same token as category overview buckets for empty cells
+UNASSIGNED_LABEL = "(unassigned)"
+
+
+def _load_category_store(out_dir: str) -> CategoryStore | None:
+    p = Path(out_dir).expanduser().resolve() / CATEGORIES_STORE_NAME
+    return load_store(p) if p.is_file() else None
+
+
+def _resolve_image_path_for_row(row: dict[str, str], store: CategoryStore | None) -> Path | None:
+    """Best-effort path to the source image for category resolution (under input_root)."""
+    if store is None:
+        return None
+    root = Path(store.input_root).expanduser().resolve()
+    if not root.is_dir():
+        return None
+    ip = str(row.get("image_path", "")).strip()
+    if ip:
+        p = Path(ip).expanduser()
+        if p.is_absolute():
+            if p.is_file():
+                return p.resolve()
+        else:
+            cand = (root / ip).resolve()
+            if cand.is_file():
+                return cand
+    imn = str(row.get("img_name", "")).strip()
+    if imn:
+        cand = (root / imn).resolve()
+        if cand.is_file():
+            return cand
+    return None
+
+
+def _enrich_rows_with_categories(
+    rows: list[dict[str, str]], store: CategoryStore | None
+) -> list[dict[str, str]]:
+    if store is None:
+        return rows
+    out: list[dict[str, str]] = []
+    for row in rows:
+        p = _resolve_image_path_for_row(row, store)
+        if p is None:
+            out.append(dict(row))
+            continue
+        out.append({k: str(v or "") for k, v in merge_row_with_categories(dict(row), p, store).items()})
+    return out
+
+
+def _cat_value(row: dict[str, str], col_id: str) -> str:
+    v = str(row.get(col_id, "")).strip()
+    return v if v else UNASSIGNED_LABEL
+
+
+def _try_welch_ttest(a: np.ndarray, b: np.ndarray) -> tuple[float, float] | None:
+    """Returns (t_statistic, p_value) or None if not computable / scipy missing."""
+    a = a[np.isfinite(a)]
+    b = b[np.isfinite(b)]
+    if a.size < 2 or b.size < 2:
+        return None
+    try:
+        from scipy.stats import ttest_ind
+
+        r = ttest_ind(a, b, equal_var=False, nan_policy="omit")
+        return float(r.statistic), float(r.pvalue)
+    except Exception:
+        return None
+
+
+def _distinct_colors(n: int):
+    """RGBA rows for n categories (matplotlib tab10-like)."""
+    import matplotlib.pyplot as plt
+
+    cmap = plt.get_cmap("tab10")
+    return [cmap(i % 10) for i in range(max(n, 1))]
+
 
 def _to_bool(v: object) -> bool:
     return str(v or "").strip().lower() in ("1", "true", "yes")
@@ -77,7 +156,9 @@ def _short_img_label(row: dict[str, str]) -> str:
 
 def _read_rows(out_dir: str) -> list[dict[str, str]]:
     p = Path(out_dir).expanduser().resolve()
-    candidates = [p / "result_ok.csv", p / "results.csv"]
+    # Prefer results.csv: it includes category columns merged by the pipeline / refresh.
+    # result_ok.csv is canonical-only (no sex/dose/…) — using it first hid categories in graphs.
+    candidates = [p / "results.csv", p / "result_ok.csv"]
     src = next((x for x in candidates if x.exists()), None)
     if src is None:
         return []
@@ -228,11 +309,39 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     }
     cmb_graph = ttk.Combobox(left, state="readonly", values=list(graph_map.keys()))
     cmb_graph.set("Scatter")
-    cmb_graph.grid(row=4, column=0, sticky="ew", pady=(2, 10))
+    cmb_graph.grid(row=4, column=0, sticky="ew", pady=(2, 6))
+
+    ttk.Label(
+        left,
+        text="Category (from category_assignments.json)",
+        wraplength=260,
+    ).grid(row=5, column=0, sticky="w")
+    cat_choice: dict[str, str] = {"(none)": ""}
+
+    def _rebuild_cat_combo() -> None:
+        st = _load_category_store(out_dir)
+        cat_choice.clear()
+        cat_choice["(none)"] = ""
+        labels = ["(none)"]
+        if st:
+            for c in st.columns:
+                if not c.id:
+                    continue
+                lab = f"{c.title} ({c.id})"
+                labels.append(lab)
+                cat_choice[lab] = c.id
+        cmb_cat.configure(values=labels)
+        cur = cmb_cat.get()
+        if cur not in labels:
+            cmb_cat.set("(none)")
+
+    cmb_cat = ttk.Combobox(left, state="readonly", values=["(none)"])
+    cmb_cat.set("(none)")
+    cmb_cat.grid(row=6, column=0, sticky="ew", pady=(2, 10))
 
     # Dynamic options area: controls depend on graph type
     opts = ttk.Frame(left)
-    opts.grid(row=5, column=0, sticky="ew")
+    opts.grid(row=7, column=0, sticky="ew")
     opts.columnconfigure(0, weight=1)
 
     # Histogram options
@@ -270,9 +379,9 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     cmb_box_metric.set("Area")
 
     btn_draw = ttk.Button(left, text="Draw")
-    btn_draw.grid(row=6, column=0, sticky="ew", pady=(8, 4))
+    btn_draw.grid(row=8, column=0, sticky="ew", pady=(8, 4))
     btns_save = ttk.Frame(left)
-    btns_save.grid(row=7, column=0, sticky="ew", pady=(4, 4))
+    btns_save.grid(row=9, column=0, sticky="ew", pady=(4, 4))
     btns_save.columnconfigure(0, weight=1)
     btns_save.columnconfigure(1, weight=1)
     btns_save.columnconfigure(2, weight=1)
@@ -284,7 +393,7 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     btn_copy_stats.grid(row=0, column=2, sticky="ew", padx=(4, 0))
 
     stats_txt = tk.Text(left, width=40, height=24, wrap="word")
-    stats_txt.grid(row=8, column=0, sticky="nsew", pady=(8, 0))
+    stats_txt.grid(row=10, column=0, sticky="nsew", pady=(8, 0))
     stats_txt.configure(state="disabled")
 
     # NOTE: In TkAgg, canvas pixel size ~= figsize * dpi.
@@ -448,7 +557,53 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
         else:
             _show_scatter_opts()
 
+    def _active_cat_col() -> str | None:
+        lab = cmb_cat.get()
+        cid = cat_choice.get(lab, "")
+        return cid if cid else None
+
+    def _scatter_stats_by_category(
+        x: np.ndarray,
+        y: np.ndarray,
+        cats: list[str],
+        xlab: str,
+        ylab: str,
+    ) -> str:
+        keys = sorted(set(cats))
+        parts: list[str] = []
+        for k in keys:
+            idx = [i for i, c in enumerate(cats) if c == k]
+            if not idx:
+                continue
+            xi = x[idx]
+            yi = y[idx]
+            parts.append(f"=== {k} ===\n" + _stats_text(xi, f"X ({xlab})") + "\n\n" + _stats_text(yi, f"Y ({ylab})"))
+        parts.append(
+            "--- All points ---\n"
+            f"N pairs={x.size}\ncorr={_corr(x, y):.4g}\nmean(Y-X)={float(np.mean(y - x)):.4g}"
+        )
+        if len(keys) == 2:
+            a, b = keys[0], keys[1]
+            ia = np.array([i for i, c in enumerate(cats) if c == a], dtype=int)
+            ib = np.array([i for i, c in enumerate(cats) if c == b], dtype=int)
+            if ia.size >= 2 and ib.size >= 2:
+                wx = _try_welch_ttest(x[ia], x[ib])
+                wy = _try_welch_ttest(y[ia], y[ib])
+                if wx:
+                    parts.append(f"\nWelch t-test X ({a} vs {b}): t={wx[0]:.4g}, p={wx[1]:.4g}")
+                if wy:
+                    parts.append(f"Welch t-test Y ({a} vs {b}): t={wy[0]:.4g}, p={wy[1]:.4g}")
+        return "\n\n".join(parts)
+
     def _draw() -> None:
+        _rebuild_cat_combo()
+        # Sync category columns into results.csv on disk (same as OK / Categories Close).
+        try:
+            from pipeline.batch import refresh_results_csv_categories
+
+            refresh_results_csv_categories(out_dir)
+        except Exception:
+            pass
         # Always refresh normalized dataset before plotting.
         ok_save, _out_csv, _rows_written = reorganise_results_to_ok_csv(out_dir)
         if not ok_save:
@@ -465,10 +620,13 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
             canvas.draw_idle()
             return
 
+        cat_store = _load_category_store(out_dir)
         mode_key = mode_map.get(cmb_mode.get(), "prefer_corrected")
         graph_key = graph_map.get(cmb_graph.get(), "scatter")
         _scatter_hover_teardown()
         r = _apply_dataset_mode(rows, mode_key)
+        r = _enrich_rows_with_categories(r, cat_store)
+        cat_col = _active_cat_col()
         ax.clear()
 
         if graph_key == "scatter":
@@ -476,12 +634,14 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
             ycol = cmb_sc_y.get().strip()
             pairs: list[tuple[float, float]] = []
             labels_sc: list[str] = []
+            cats_sc: list[str] = []
             for row in r:
                 xv = _to_float(row.get(xcol, ""))
                 yv = _to_float(row.get(ycol, ""))
                 if np.isfinite(xv) and np.isfinite(yv):
                     pairs.append((xv, yv))
                     labels_sc.append(_short_img_label(row))
+                    cats_sc.append(_cat_value(row, cat_col) if cat_col else "")
             if not pairs:
                 _set_stats(f"No valid paired values for scatter:\nX={xcol}\nY={ycol}")
             else:
@@ -490,15 +650,35 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
                 x = _convert_vals(x, xcol)
                 y = _convert_vals(y, ycol)
                 n = x.size
-                sc = ax.scatter(
-                    x,
-                    y,
-                    alpha=0.75,
-                    s=40,
-                    linewidths=0.3,
-                    picker=True,
-                    pickradius=12,
-                )
+                if cat_col:
+                    keys = sorted(set(cats_sc))
+                    pal = _distinct_colors(len(keys))
+                    kv = {k: pal[i] for i, k in enumerate(keys)}
+                    face = [kv[c] for c in cats_sc]
+                    sc = ax.scatter(
+                        x,
+                        y,
+                        c=face,
+                        alpha=0.78,
+                        s=44,
+                        linewidths=0.35,
+                        edgecolors="black",
+                        picker=True,
+                        pickradius=12,
+                    )
+                    for i, k in enumerate(keys):
+                        ax.scatter([], [], c=[pal[i]], label=k, s=44, edgecolors="black", linewidths=0.35)
+                    ax.legend(loc="best", fontsize=8, framealpha=0.92)
+                else:
+                    sc = ax.scatter(
+                        x,
+                        y,
+                        alpha=0.75,
+                        s=40,
+                        linewidths=0.3,
+                        picker=True,
+                        pickradius=12,
+                    )
                 annot = ax.annotate(
                     "",
                     xy=(0.0, 0.0),
@@ -571,6 +751,8 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
                             i = int(ind[0])
                             if 0 <= i < len(lbs):
                                 txt = str(lbs[i])
+                                if cat_col and i < len(cats_sc):
+                                    txt = f"{cats_sc[i]} — {txt}"
                                 ann.xy = (float(xs[i]), float(ys[i]))
                                 ann.set_text(txt)
                                 _scatter_smart_label_placement(float(xs[i]), float(ys[i]), txt)
@@ -596,13 +778,21 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
                         ax.plot([lo, hi], [lo, hi], "--", linewidth=1.2, alpha=0.75)
                 ax.set_xlabel(_label(xcol))
                 ax.set_ylabel(_label(ycol))
-                ax.set_title(f"Scatter: {_label(xcol)} vs {_label(ycol)}")
-                _set_stats(
-                    _stats_text(x, f"X ({_label(xcol)})")
-                    + "\n\n"
-                    + _stats_text(y, f"Y ({_label(ycol)})")
-                    + f"\n\nN pairs={n}\ncorr={_corr(x, y):.4g}\nmean(Y-X)={float(np.mean(y-x)):.4g}"
-                )
+                ttl = f"Scatter: {_label(xcol)} vs {_label(ycol)}"
+                if cat_col:
+                    ttl += f" (by {cat_col})"
+                ax.set_title(ttl)
+                if cat_col:
+                    _set_stats(
+                        _scatter_stats_by_category(x, y, cats_sc, _label(xcol), _label(ycol))
+                    )
+                else:
+                    _set_stats(
+                        _stats_text(x, f"X ({_label(xcol)})")
+                        + "\n\n"
+                        + _stats_text(y, f"Y ({_label(ycol)})")
+                        + f"\n\nN pairs={n}\ncorr={_corr(x, y):.4g}\nmean(Y-X)={float(np.mean(y-x)):.4g}"
+                    )
 
         elif graph_key == "boxplot":
             grp = box_group_map.get(cmb_box_group.get(), "hipp")
@@ -616,34 +806,151 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
                 rcol = "midline_area_right_px" if metric == "area" else "midline_perimeter_right_px"
                 title = f"Midline {metric}: left vs right"
 
-            lvals = _convert_vals(_extract_numeric(r, lcol), lcol)
-            rvals = _convert_vals(_extract_numeric(r, rcol), rcol)
-            if lvals.size == 0 and rvals.size == 0:
-                _set_stats(f"No valid values for boxplot:\n{lcol}\n{rcol}")
+            if not cat_col:
+                lvals = _convert_vals(_extract_numeric(r, lcol), lcol)
+                rvals = _convert_vals(_extract_numeric(r, rcol), rcol)
+                if lvals.size == 0 and rvals.size == 0:
+                    _set_stats(f"No valid values for boxplot:\n{lcol}\n{rcol}")
+                else:
+                    ax.boxplot([lvals, rvals], labels=["Left", "Right"], showfliers=True)
+                    ax.set_title(title + (f" [{var_unit.get()}]" if bool(var_convert_units.get()) else " [px]"))
+                    y_unit = f"{var_unit.get()}^2" if _col_kind(lcol) == "area" and bool(var_convert_units.get()) else (var_unit.get() if bool(var_convert_units.get()) else "px")
+                    ax.set_ylabel(y_unit)
+                    _set_stats(
+                        _stats_text(lvals, f"Left ({_label(lcol)})")
+                        + "\n\n"
+                        + _stats_text(rvals, f"Right ({_label(rcol)})")
+                    )
             else:
-                ax.boxplot([lvals, rvals], labels=["Left", "Right"], showfliers=True)
-                ax.set_title(title + (f" [{var_unit.get()}]" if bool(var_convert_units.get()) else " [px]"))
-                y_unit = f"{var_unit.get()}^2" if _col_kind(lcol) == "area" and bool(var_convert_units.get()) else (var_unit.get() if bool(var_convert_units.get()) else "px")
-                ax.set_ylabel(y_unit)
-                _set_stats(
-                    _stats_text(lvals, f"Left ({_label(lcol)})")
-                    + "\n\n"
-                    + _stats_text(rvals, f"Right ({_label(rcol)})")
-                )
+                # One pair of boxes (Left, Right) per category value.
+                buckets: dict[str, tuple[list[float], list[float]]] = {}
+                for row in r:
+                    cat = _cat_value(row, cat_col)
+                    xv = _to_float(row.get(lcol, ""))
+                    yv = _to_float(row.get(rcol, ""))
+                    if cat not in buckets:
+                        buckets[cat] = ([], [])
+                    if np.isfinite(xv):
+                        buckets[cat][0].append(xv)
+                    if np.isfinite(yv):
+                        buckets[cat][1].append(yv)
+                for cat in buckets:
+                    lx, rx = buckets[cat]
+                    buckets[cat] = (
+                        _convert_vals(np.array(lx, dtype=float), lcol),
+                        _convert_vals(np.array(rx, dtype=float), rcol),
+                    )
+                order = sorted(buckets.keys(), key=lambda x: (x != UNASSIGNED_LABEL, str(x).lower()))
+                data: list[np.ndarray] = []
+                positions: list[float] = []
+                pos = 0.0
+                step = 2.4
+                w = 0.32
+                for cat in order:
+                    lv, rv = buckets[cat]
+                    if lv.size == 0 and rv.size == 0:
+                        continue
+                    data.append(lv)
+                    data.append(rv)
+                    positions.extend([pos - w, pos + w])
+                    pos += step
+                if not data:
+                    _set_stats(f"No valid values for boxplot (by category):\n{lcol}\n{rcol}")
+                else:
+                    bp = ax.boxplot(data, positions=positions, widths=w * 1.85, showfliers=True, patch_artist=True)
+                    left_c = "#7eb6ff"
+                    right_c = "#ffb37a"
+                    for i, patch in enumerate(bp["boxes"]):
+                        patch.set_facecolor(left_c if i % 2 == 0 else right_c)
+                    tick_pos = [(positions[i] + positions[i + 1]) / 2 for i in range(0, len(positions), 2)]
+                    tick_lbl: list[str] = []
+                    for cat in order:
+                        lv, rv = buckets[cat]
+                        if lv.size == 0 and rv.size == 0:
+                            continue
+                        tick_lbl.append(cat)
+                    ax.set_xticks(tick_pos[: len(tick_lbl)])
+                    ax.set_xticklabels(tick_lbl, rotation=15, ha="right")
+                    from matplotlib.patches import Patch
+
+                    ax.legend(
+                        handles=[Patch(facecolor=left_c, label="Left"), Patch(facecolor=right_c, label="Right")],
+                        loc="upper right",
+                        fontsize=8,
+                    )
+                    t2 = title + (f" [{var_unit.get()}]" if bool(var_convert_units.get()) else " [px]")
+                    ax.set_title(t2 + f" — by {cat_col}")
+                    y_unit = f"{var_unit.get()}^2" if _col_kind(lcol) == "area" and bool(var_convert_units.get()) else (var_unit.get() if bool(var_convert_units.get()) else "px")
+                    ax.set_ylabel(y_unit)
+                    st_parts: list[str] = []
+                    for cat in order:
+                        lv, rv = buckets[cat]
+                        if lv.size == 0 and rv.size == 0:
+                            continue
+                        st_parts.append(
+                            f"=== {cat} ===\n"
+                            + _stats_text(lv, f"Left ({_label(lcol)})")
+                            + "\n\n"
+                            + _stats_text(rv, f"Right ({_label(rcol)})")
+                        )
+                    _set_stats("\n\n".join(st_parts))
 
         else:  # histogram
             col = cmb_hist_col.get().strip()
-            vals = _convert_vals(_extract_numeric(r, col), col)
             bins = var_bins.get() if isinstance(var_bins.get(), int) else 30
             bins = max(2, min(400, int(bins)))
-            if vals.size == 0:
-                _set_stats(f"No valid values for {col}.")
+            if not cat_col:
+                vals = _convert_vals(_extract_numeric(r, col), col)
+                if vals.size == 0:
+                    _set_stats(f"No valid values for {col}.")
+                else:
+                    ax.hist(vals, bins=bins, alpha=0.8, edgecolor="black")
+                    ax.set_title(f"Histogram: {_label(col)}")
+                    ax.set_xlabel(_label(col))
+                    ax.set_ylabel("Count")
+                    _set_stats(_stats_text(vals, f"{_label(col)}"))
             else:
-                ax.hist(vals, bins=bins, alpha=0.8, edgecolor="black")
-                ax.set_title(f"Histogram: {_label(col)}")
-                ax.set_xlabel(_label(col))
-                ax.set_ylabel("Count")
-                _set_stats(_stats_text(vals, f"{_label(col)}"))
+                groups: dict[str, list[float]] = {}
+                for row in r:
+                    v = _to_float(row.get(col, ""))
+                    if not np.isfinite(v):
+                        continue
+                    cat = _cat_value(row, cat_col)
+                    groups.setdefault(cat, []).append(v)
+                for cat in groups:
+                    arr = np.array(groups[cat], dtype=float)
+                    groups[cat] = list(_convert_vals(arr, col))
+                order = sorted(groups.keys(), key=lambda x: (x != UNASSIGNED_LABEL, str(x).lower()))
+                combined = np.array([x for cat in order for x in groups[cat]], dtype=float)
+                if combined.size == 0:
+                    _set_stats(f"No valid values for {col}.")
+                else:
+                    edges = np.histogram_bin_edges(combined, bins=bins)
+                    pal = _distinct_colors(len(order))
+                    for i, cat in enumerate(order):
+                        vals = np.array(groups[cat], dtype=float)
+                        if vals.size == 0:
+                            continue
+                        ax.hist(
+                            vals,
+                            bins=edges,
+                            alpha=0.55,
+                            label=str(cat),
+                            color=pal[i % len(pal)],
+                            edgecolor="black",
+                            linewidth=0.35,
+                        )
+                    ax.legend(loc="best", fontsize=8)
+                    ax.set_title(f"Histogram: {_label(col)} — by {cat_col}")
+                    ax.set_xlabel(_label(col))
+                    ax.set_ylabel("Count")
+                    st_parts = []
+                    for cat in order:
+                        vals = np.array(groups[cat], dtype=float)
+                        if vals.size == 0:
+                            continue
+                        st_parts.append(_stats_text(vals, f"{cat} ({_label(col)})"))
+                    _set_stats("\n\n".join(st_parts))
 
         ax.grid(True, alpha=0.2)
         fig.tight_layout()
@@ -674,6 +981,9 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
             grp = box_group_map.get(cmb_box_group.get(), "hipp")
             met = box_metric_map.get(cmb_box_metric.get(), "area")
             core = f"box_{grp}_{met}_left_vs_right"
+        cc = _active_cat_col()
+        if cc:
+            core += f"_by_{cc}"
         return f"{_safe_name(mode_key)}__{_safe_name(core)}.png"
 
     def _is_allowed_scatter_pair(xcol: str, ycol: str) -> bool:
@@ -718,11 +1028,13 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
             "box_group": cmb_box_group.get(),
             "box_metric": cmb_box_metric.get(),
             "ref": bool(var_sc_refline.get()),
+            "cat": cmb_cat.get(),
         }
 
         out_dir_graphs = _graphs_dir()
         saved = 0
         try:
+            cmb_cat.set("(none)")
             # Use only currently selected Dataset mode.
             # Scatter presets: L/R area + L/R perimeter for both groups.
             cmb_graph.set("Scatter")
@@ -776,6 +1088,10 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
             cmb_box_group.set(prev["box_group"])
             cmb_box_metric.set(prev["box_metric"])
             var_sc_refline.set(prev["ref"])
+            if prev.get("cat") in cmb_cat.cget("values"):
+                cmb_cat.set(prev["cat"])
+            else:
+                cmb_cat.set("(none)")
             _draw()
 
         if saved > 0:
@@ -786,6 +1102,7 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     btn_save_all.configure(command=_save_all_graphs)
     btn_copy_stats.configure(command=_copy_stats_all)
     cmb_mode.bind("<<ComboboxSelected>>", lambda _e: _draw())
+    cmb_cat.bind("<<ComboboxSelected>>", lambda _e: _draw())
     cmb_graph.bind("<<ComboboxSelected>>", lambda _e: (_refresh_dynamic_controls(), _draw()))
     cmb_hist_col.bind("<<ComboboxSelected>>", lambda _e: _draw())
     cmb_sc_x.bind("<<ComboboxSelected>>", lambda _e: _draw())

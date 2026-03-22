@@ -4,9 +4,111 @@ from pathlib import Path
 from typing import Any, Iterable
 import csv
 import json
+import os
 
 from config import CATEGORIES_STORE_NAME
 from core.categories import load_store, merge_row_with_categories
+
+# Columns written by ``process_paths`` / ``refresh_results_csv_categories`` (before category + extra cols).
+BASE_CSV_FIELDNAMES: list[str] = [
+    "image_path",
+    "overlay_path",
+    "img_name",
+    "accepted",
+    "contour_version",
+    "brain_area_px",
+    "brain_perim_px",
+    "midline_area_left_px",
+    "midline_area_right_px",
+    "midline_perimeter_left_px",
+    "midline_perimeter_right_px",
+    "non_complete_contour",
+    "hipp_area_left_px",
+    "hipp_area_right_px",
+    "hipp_perimeter_left_px",
+    "hipp_perimeter_right_px",
+]
+
+
+def refresh_results_csv_categories(out_dir: str | Path) -> tuple[bool, str]:
+    """Rewrite ``results.csv`` so every row gets category columns from ``category_assignments.json``.
+
+    Categories are **not** applied retroactively unless this runs (or the image is processed again).
+    Safe to call after editing assignments or when paths in CSV did not match ``input_root`` earlier.
+
+    Returns ``(ok, message)``.
+    """
+    out = Path(out_dir).expanduser().resolve()
+    csv_path = out / "results.csv"
+    cat_path = out / CATEGORIES_STORE_NAME
+    if not csv_path.is_file():
+        return True, "no results.csv"
+    cat_store = load_store(cat_path) if cat_path.is_file() else None
+    if cat_store is None:
+        return True, "no category_assignments.json"
+
+    rows_in: list[dict[str, str]] = []
+    hdr: list[str] = []
+    try:
+        with csv_path.open("r", newline="", encoding="utf-8") as rf:
+            rdr = csv.reader(rf)
+            hdr = next(rdr, None) or []
+            for raw_fields in rdr:
+                if not raw_fields:
+                    continue
+                fields = list(raw_fields)
+                if len(fields) == 1 and "," in fields[0]:
+                    try:
+                        fields = next(csv.reader([fields[0]]))
+                    except Exception:
+                        pass
+                rec = {k: str(fields[i] if i < len(fields) else "") for i, k in enumerate(hdr)}
+                rows_in.append(rec)
+    except Exception as exc:
+        return False, f"read failed: {exc}"
+
+    cat_cols = list(cat_store.column_ids())
+    extra_cols = [h for h in hdr if h not in BASE_CSV_FIELDNAMES and h not in cat_cols]
+    csv_fieldnames: list[str] = list(BASE_CSV_FIELDNAMES) + cat_cols + extra_cols
+
+    def _coerce_scalar(v: Any) -> Any:
+        if v is None:
+            return ""
+        if isinstance(v, (dict, list, tuple)):
+            try:
+                return json.dumps(v, ensure_ascii=False)
+            except Exception:
+                return str(v)
+        return v
+
+    rows_out: list[dict[str, Any]] = []
+    for rec in rows_in:
+        merged = merge_row_with_categories(dict(rec), None, cat_store)
+        rows_out.append({k: _coerce_scalar(merged.get(k, "")) for k in csv_fieldnames})
+
+    try:
+        with csv_path.open("w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=csv_fieldnames)
+            w.writeheader()
+            for rec in rows_out:
+                w.writerow({k: rec.get(k, "") for k in csv_fieldnames})
+            f.flush()
+    except Exception as exc:
+        return False, f"write failed: {exc}"
+
+    print(
+        f"[Categories] Refreshed results.csv with assignment columns ({len(rows_out)} row(s)) → {csv_path}"
+    )
+    if os.environ.get("HMT_CATEGORY_DEBUG", "").strip() and rows_in and cat_store is not None:
+        try:
+            from core.categories.debug_resolve import write_category_debug_report
+
+            write_category_debug_report(cat_store, rows_in[0], out)
+            print(f"[Categories] Wrote {out / 'category_resolve_debug.txt'} (first CSV row, set HMT_CATEGORY_DEBUG=1)")
+        except Exception as exc:
+            print(f"[Categories] Debug report skipped: {exc}")
+    return True, f"updated {len(rows_out)} row(s)"
+
 
 def _iter_image_paths(root: Path, *, recursive: bool = True) -> list[Path]:
     exts = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
@@ -89,24 +191,7 @@ def process_paths(
     rows: list[dict[str, Any]] = []
 
     csv_path = out / "results.csv"
-    base_fieldnames: list[str] = [
-        "image_path",
-        "overlay_path",
-        "img_name",
-        "accepted",
-        "contour_version",
-        "brain_area_px",
-        "brain_perim_px",
-        "midline_area_left_px",
-        "midline_area_right_px",
-        "midline_perimeter_left_px",
-        "midline_perimeter_right_px",
-        "non_complete_contour",
-        "hipp_area_left_px",
-        "hipp_area_right_px",
-        "hipp_perimeter_left_px",
-        "hipp_perimeter_right_px",
-    ]
+    base_fieldnames: list[str] = list(BASE_CSV_FIELDNAMES)
 
     cat_path = out / CATEGORIES_STORE_NAME
     cat_store = load_store(cat_path) if cat_path.is_file() else None

@@ -3,7 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 import csv
+import sys
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import ttk, messagebox
 
 import numpy as np
@@ -94,10 +96,8 @@ def _enrich_rows_with_categories(
     out: list[dict[str, str]] = []
     for row in rows:
         p = _resolve_image_path_for_row(row, store)
-        if p is None:
-            out.append(dict(row))
-            continue
-        out.append({k: str(v or "") for k, v in merge_row_with_categories(dict(row), p, store).items()})
+        merged = merge_row_with_categories(dict(row), p, store)
+        out.append({k: str(v or "") for k, v in merged.items()})
     return out
 
 
@@ -261,19 +261,54 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
 
     win = tk.Toplevel(parent)
     win.title("Show graphs")
-    # Keep a reasonable default size; user can resize if needed.
-    win.geometry("1050x680")
+    win.geometry("1200x720")
+    win.minsize(980, 620)
     win.rowconfigure(0, weight=1)
     win.columnconfigure(1, weight=1)
+    win.columnconfigure(2, weight=0, minsize=300)
 
-    left = ttk.Frame(win, padding=10)
+    # Light styling: calmer chrome, consistent padding (best effort per platform).
+    _panel_bg = "#f2f4f8"
+    try:
+        style = ttk.Style(win)
+        if sys.platform == "darwin":
+            style.theme_use("aqua")
+        else:
+            style.theme_use("clam")
+        style.configure("Graphs.TFrame", background=_panel_bg)
+        style.configure("Graphs.TLabelframe", background=_panel_bg)
+        style.configure("Graphs.TLabelframe.Label", background=_panel_bg, font=("TkDefaultFont", 10, "bold"))
+        style.configure("Graphs.TLabel", background=_panel_bg)
+        style.configure("Accent.TButton", padding=(12, 8))
+        win.configure(bg=_panel_bg)
+    except Exception:
+        _panel_bg = None  # type: ignore[assignment]
+
+    def _st(nm: str) -> dict[str, str]:
+        return {"style": nm} if _panel_bg else {}
+
+    left = ttk.Frame(win, padding=(14, 16, 10, 16), **_st("Graphs.TFrame"))
     left.grid(row=0, column=0, sticky="ns")
-    right = ttk.Frame(win, padding=10)
-    right.grid(row=0, column=1, sticky="nsew")
-    right.rowconfigure(1, weight=1)
-    right.columnconfigure(0, weight=1)
+    left.columnconfigure(0, weight=1)
 
-    ttk.Label(left, text="Dataset mode").grid(row=0, column=0, sticky="w")
+    plot_area = ttk.Frame(win, padding=(4, 16, 8, 16), **_st("Graphs.TFrame"))
+    plot_area.grid(row=0, column=1, sticky="nsew")
+    plot_area.rowconfigure(0, weight=1)
+    plot_area.columnconfigure(0, weight=1)
+
+    stats_lf = ttk.LabelFrame(
+        win,
+        text="Statistics",
+        padding=(10, 10),
+        **_st("Graphs.TLabelframe"),
+    )
+    stats_lf.grid(row=0, column=2, sticky="nsew", padx=(0, 14), pady=16)
+    stats_lf.rowconfigure(0, weight=1)
+    stats_lf.columnconfigure(0, weight=1)
+
+    lf_mode = ttk.LabelFrame(left, text="Dataset", padding=(10, 8), **_st("Graphs.TLabelframe"))
+    lf_mode.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+    lf_mode.columnconfigure(0, weight=1)
     var_mode = tk.StringVar(value="prefer_corrected")
     mode_map = {
         "Prefer corrected": "prefer_corrected",
@@ -281,16 +316,16 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
         "Exclude non-complete": "exclude_non_complete",
         "Include both": "include_both",
     }
-    cmb_mode = ttk.Combobox(left, state="readonly", values=list(mode_map.keys()))
+    cmb_mode = ttk.Combobox(lf_mode, state="readonly", values=list(mode_map.keys()))
     cmb_mode.set("Prefer corrected")
-    cmb_mode.grid(row=1, column=0, sticky="ew", pady=(2, 10))
+    cmb_mode.grid(row=0, column=0, sticky="ew")
 
     # Optional conversion from pixels to mm/cm for plotting/statistics.
-    conv = ttk.LabelFrame(left, text="Units", padding=6)
-    conv.grid(row=2, column=0, sticky="ew", pady=(0, 8))
+    conv = ttk.LabelFrame(left, text="Units", padding=(10, 8), **_st("Graphs.TLabelframe"))
+    conv.grid(row=1, column=0, sticky="ew", pady=(0, 10))
     conv.columnconfigure(1, weight=1)
     var_convert_units = tk.BooleanVar(value=init_convert)
-    chk_convert = ttk.Checkbutton(conv, text="pxl to mm/cm", variable=var_convert_units)
+    chk_convert = ttk.Checkbutton(conv, text="Convert pixels → mm/cm", variable=var_convert_units)
     chk_convert.grid(row=0, column=0, columnspan=2, sticky="w")
     ttk.Label(conv, text="Unit").grid(row=1, column=0, sticky="w", pady=(4, 0))
     var_unit = tk.StringVar(value=init_unit)
@@ -301,21 +336,27 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     ent_px_per_unit = ttk.Entry(conv, textvariable=var_px_per_unit, width=12)
     ent_px_per_unit.grid(row=2, column=1, sticky="w", pady=(4, 0))
 
-    ttk.Label(left, text="Graph type").grid(row=3, column=0, sticky="w")
+    lf_chart = ttk.LabelFrame(left, text="Chart type", padding=(10, 8), **_st("Graphs.TLabelframe"))
+    lf_chart.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+    lf_chart.columnconfigure(0, weight=1)
     graph_map = {
         "Scatter": "scatter",
         "Histogram": "hist",
         "Boxplot": "boxplot",
     }
-    cmb_graph = ttk.Combobox(left, state="readonly", values=list(graph_map.keys()))
+    cmb_graph = ttk.Combobox(lf_chart, state="readonly", values=list(graph_map.keys()))
     cmb_graph.set("Scatter")
-    cmb_graph.grid(row=4, column=0, sticky="ew", pady=(2, 6))
+    cmb_graph.grid(row=0, column=0, sticky="ew")
 
+    lf_cat = ttk.LabelFrame(left, text="Category", padding=(10, 8), **_st("Graphs.TLabelframe"))
+    lf_cat.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+    lf_cat.columnconfigure(0, weight=1)
     ttk.Label(
-        left,
-        text="Category (from category_assignments.json)",
-        wraplength=260,
-    ).grid(row=5, column=0, sticky="w")
+        lf_cat,
+        text="Color / grouping (category_assignments.json)",
+        wraplength=240,
+        **_st("Graphs.TLabel"),
+    ).grid(row=0, column=0, sticky="w")
     cat_choice: dict[str, str] = {"(none)": ""}
 
     def _rebuild_cat_combo() -> None:
@@ -335,13 +376,13 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
         if cur not in labels:
             cmb_cat.set("(none)")
 
-    cmb_cat = ttk.Combobox(left, state="readonly", values=["(none)"])
+    cmb_cat = ttk.Combobox(lf_cat, state="readonly", values=["(none)"])
     cmb_cat.set("(none)")
-    cmb_cat.grid(row=6, column=0, sticky="ew", pady=(2, 10))
+    cmb_cat.grid(row=1, column=0, sticky="ew", pady=(6, 0))
 
     # Dynamic options area: controls depend on graph type
-    opts = ttk.Frame(left)
-    opts.grid(row=7, column=0, sticky="ew")
+    opts = ttk.LabelFrame(left, text="Plot options", padding=(10, 8), **_st("Graphs.TLabelframe"))
+    opts.grid(row=4, column=0, sticky="ew", pady=(0, 10))
     opts.columnconfigure(0, weight=1)
 
     # Histogram options
@@ -378,31 +419,51 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
     cmb_box_metric = ttk.Combobox(opts, state="readonly", values=list(box_metric_map.keys()))
     cmb_box_metric.set("Area")
 
-    btn_draw = ttk.Button(left, text="Draw")
-    btn_draw.grid(row=8, column=0, sticky="ew", pady=(8, 4))
-    btns_save = ttk.Frame(left)
-    btns_save.grid(row=9, column=0, sticky="ew", pady=(4, 4))
+    btn_draw = ttk.Button(left, text="Redraw", **_st("Accent.TButton"))
+    btn_draw.grid(row=5, column=0, sticky="ew", pady=(4, 8))
+    btns_save = ttk.Frame(left, **_st("Graphs.TFrame"))
+    btns_save.grid(row=6, column=0, sticky="ew", pady=(0, 0))
     btns_save.columnconfigure(0, weight=1)
     btns_save.columnconfigure(1, weight=1)
     btns_save.columnconfigure(2, weight=1)
-    btn_save_current = ttk.Button(btns_save, text="Save current graph")
-    btn_save_all = ttk.Button(btns_save, text="Save all graphs")
+    btn_save_current = ttk.Button(btns_save, text="Save current")
+    btn_save_all = ttk.Button(btns_save, text="Save all")
     btn_copy_stats = ttk.Button(btns_save, text="Copy stats")
     btn_save_current.grid(row=0, column=0, sticky="ew", padx=(0, 4))
     btn_save_all.grid(row=0, column=1, sticky="ew", padx=(4, 0))
     btn_copy_stats.grid(row=0, column=2, sticky="ew", padx=(4, 0))
 
-    stats_txt = tk.Text(left, width=40, height=24, wrap="word")
-    stats_txt.grid(row=10, column=0, sticky="nsew", pady=(8, 0))
+    _mono = tkfont.nametofont("TkFixedFont")
+    stats_txt = tk.Text(
+        stats_lf,
+        width=34,
+        height=32,
+        wrap="word",
+        font=_mono,
+        relief="flat",
+        borderwidth=0,
+        padx=6,
+        pady=8,
+        highlightthickness=1,
+        highlightbackground="#d0d4dc",
+        highlightcolor="#a8b0c0",
+        selectbackground="#c8d4f0",
+    )
+    stats_scroll = ttk.Scrollbar(stats_lf, orient=tk.VERTICAL, command=stats_txt.yview)
+    stats_txt.configure(yscrollcommand=stats_scroll.set)
+    stats_txt.grid(row=0, column=0, sticky="nsew")
+    stats_scroll.grid(row=0, column=1, sticky="ns")
     stats_txt.configure(state="disabled")
 
     # NOTE: In TkAgg, canvas pixel size ~= figsize * dpi.
     # Keep display DPI moderate so the UI doesn't become huge.
     fig = Figure(figsize=(7.4, 5.4), dpi=110)
+    fig.patch.set_facecolor("#fafafa")
     ax = fig.add_subplot(111)
-    canvas = FigureCanvasTkAgg(fig, master=right)
+    ax.set_facecolor("#ffffff")
+    canvas = FigureCanvasTkAgg(fig, master=plot_area)
     canvas_widget = canvas.get_tk_widget()
-    canvas_widget.grid(row=1, column=0, sticky="nsew")
+    canvas_widget.grid(row=0, column=0, sticky="nsew")
 
     # Scatter hover: mpl_connect id + data (cleared on each _draw)
     scatter_hover_state: dict[str, Any] = {
@@ -628,6 +689,9 @@ def show_graphs_ui(parent: tk.Misc, out_dir: str) -> None:
         r = _enrich_rows_with_categories(r, cat_store)
         cat_col = _active_cat_col()
         ax.clear()
+        ax.set_facecolor("#ffffff")
+        fig.patch.set_facecolor("#fafafa")
+        ax.grid(True, alpha=0.28, linestyle="--", linewidth=0.75, zorder=0)
 
         if graph_key == "scatter":
             xcol = cmb_sc_x.get().strip()

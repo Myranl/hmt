@@ -229,13 +229,22 @@ def run_roi_ui(*, img_rgb: np.ndarray) -> dict | None:
     scroll_y = ttk.Scrollbar(canvas_holder)
     scroll_x = ttk.Scrollbar(canvas_holder, orient=tk.HORIZONTAL)
     canvas = tk.Canvas(canvas_holder, highlightthickness=0, bg="#252525")
-    canvas.grid(row=0, column=0, sticky="nw")
+    canvas.grid(row=0, column=0, sticky="nsew")
     scroll_y.grid(row=0, column=1, sticky="ns")
     scroll_x.grid(row=1, column=0, sticky="ew")
     canvas.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
     scroll_y.configure(command=canvas.yview)
     scroll_x.configure(command=canvas.xview)
-    canvas.configure(width=viewport_w, height=initial_canvas_h)
+
+    def _on_canvas_holder_configure(_ev) -> None:
+        # Resize canvas to fill its container (canvas_holder)
+        cw = canvas_holder.winfo_width()
+        ch = canvas_holder.winfo_height() - SCROLL_X_H
+        if cw > 1 and ch > 1:
+            canvas.configure(width=cw, height=ch)
+            _refresh()
+
+    canvas_holder.bind("<Configure>", _on_canvas_holder_configure)
 
     # -------- Footer --------
     footer = ctk.CTkFrame(root, fg_color="transparent")
@@ -527,8 +536,9 @@ def run_roi_ui(*, img_rgb: np.ndarray) -> dict | None:
     root.update_idletasks()
     rw = root.winfo_width()
     rh = root.winfo_height()
-    x0 = max(0, (screen_w - rw) // 2)
-    y0 = max(0, (screen_h - rh) // 2)
+    # For debugging display issues on Windows: open at top-right instead of centered.
+    x0 = max(0, screen_w - rw - 50) # 50px offset from right edge
+    y0 = max(0, 50) # 50px offset from top edge
     root.geometry(f"{rw}x{rh}+{x0}+{y0}")
 
     root.minsize(880, 520)

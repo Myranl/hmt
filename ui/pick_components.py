@@ -151,8 +151,7 @@ def select_components_on_background(
     root.configure(fg_color="white")
     root.minsize(960, 520)
     root.grid_columnconfigure(1, weight=1)
-    # No vertical stretch on body — avoids empty white band between image and footer
-    root.grid_rowconfigure(1, weight=0)
+    root.grid_rowconfigure(1, weight=1)
     try:
         root.grab_set()
     except Exception:
@@ -557,8 +556,9 @@ def select_components_on_background(
     root.update_idletasks()
     rw = root.winfo_width()
     rh = root.winfo_height()
-    x0 = max(0, (screen_w - rw) // 2)
-    y0 = max(0, (screen_h - rh) // 2)
+    # For debugging display issues on Windows: open at top-right instead of centered.
+    x0 = max(0, screen_w - rw - 50) # 50px offset from right edge
+    y0 = max(0, 50) # 50px offset from top edge
     root.geometry(f"{rw}x{rh}+{x0}+{y0}")
 
     def on_press(ev) -> None:

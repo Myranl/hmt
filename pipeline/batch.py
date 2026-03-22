@@ -2,7 +2,11 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Iterable
+import csv
 import json
+
+from config import CATEGORIES_STORE_NAME
+from core.categories import load_store, merge_row_with_categories
 
 def _iter_image_paths(root: Path, *, recursive: bool = True) -> list[Path]:
     exts = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
@@ -85,7 +89,7 @@ def process_paths(
     rows: list[dict[str, Any]] = []
 
     csv_path = out / "results.csv"
-    csv_fieldnames: list[str] = [
+    base_fieldnames: list[str] = [
         "image_path",
         "overlay_path",
         "img_name",
@@ -104,7 +108,23 @@ def process_paths(
         "hipp_perimeter_right_px",
     ]
 
-    import csv
+    cat_path = out / CATEGORIES_STORE_NAME
+    cat_store = load_store(cat_path) if cat_path.is_file() else None
+    cat_cols = list(cat_store.column_ids()) if cat_store is not None else []
+
+    def _peek_csv_header() -> list[str] | None:
+        if not csv_path.is_file():
+            return None
+        try:
+            with csv_path.open("r", newline="", encoding="utf-8") as rf:
+                r = csv.reader(rf)
+                return next(r, None)
+        except Exception:
+            return None
+
+    existing_hdr = _peek_csv_header() or []
+    extra_cols = [h for h in existing_hdr if h not in base_fieldnames and h not in cat_cols]
+    csv_fieldnames: list[str] = list(base_fieldnames) + cat_cols + extra_cols
 
     def _coerce_scalar(v: Any) -> Any:
         if v is None:
@@ -177,11 +197,7 @@ def process_paths(
             try:
                 res = process_one_image(p, out_dir=out)
                 rows_for_image = _to_rows(res, image_path=p)
-            except Exception as e:
-                print(f"Error processing image {p}: {e}")
-                import traceback
-                traceback.print_exc()
-                raise # Re-raise the exception to see the full traceback
+            except Exception:
                 rows_for_image = [{
                     "image_path": str(p),
                     "img_name": p.name,
@@ -203,9 +219,10 @@ def process_paths(
 
             processed_images += 1
             for row in rows_for_image:
-                rows.append(row)
+                merged = merge_row_with_categories(dict(row), p, cat_store)
+                rows.append(merged)
                 try:
-                    _append_row(row)
+                    _append_row(merged)
                 except Exception:
                     pass
     finally:
@@ -213,7 +230,8 @@ def process_paths(
         for p in img_paths[processed_images:]:
             try:
                 for row in _to_rows(None, image_path=p):
-                    _append_row(row)
+                    merged = merge_row_with_categories(dict(row), p, cat_store)
+                    _append_row(merged)
             except Exception:
                 pass
 

@@ -20,6 +20,7 @@ from ui.file_selection.reorganise_result import (
 )
 from pipeline.input_scan import ProcessedIndex, load_processed
 from ui.file_selection.show_graphs_ui import show_graphs_ui
+from ui.categories.category_editor_ui import run_category_editor_ui
 from ui.common.tk_after import make_on_destroy
 from ui.common.theme import setup_theme, get_base_font, get_small_muted_font
 from ui.common.widgets import (
@@ -179,11 +180,13 @@ def run_folder_and_selection_ui(
     run_bar.grid(row=3, column=0, sticky="ew", pady=(12, 10))
     run_bar.columnconfigure(1, weight=1)
     btn_cancel2 = create_secondary_button(run_bar, text="Cancel")
+    btn_categories = create_secondary_button(run_bar, text="Categories…", width=108)
     btn_show_graphs = create_secondary_button(run_bar, text="Show graphs")
     btn_run = create_primary_button(run_bar, text="Run selected", width=116, state="disabled")
     btn_cancel2.grid(row=0, column=0, sticky="w")
-    btn_show_graphs.grid(row=0, column=2, sticky="e", padx=(0, 8))
-    btn_run.grid(row=0, column=3, sticky="e")
+    btn_categories.grid(row=0, column=2, sticky="e", padx=(0, 8))
+    btn_show_graphs.grid(row=0, column=3, sticky="e", padx=(0, 8))
+    btn_run.grid(row=0, column=4, sticky="e")
 
     thumbs: list[ImageTk.PhotoImage] = []
     vars_sel: list[tk.BooleanVar] = []
@@ -382,6 +385,20 @@ def run_folder_and_selection_ui(
         show_graphs_ui(root, out_dir)
 
     btn_show_graphs.configure(command=on_show_graphs)
+
+    def on_categories() -> None:
+        in_dir = var_in.get().strip()
+        out_dir = var_out.get().strip()
+        if not in_dir or not out_dir:
+            messagebox.showwarning(
+                "Categories",
+                "Please choose both input and output folders first.",
+                parent=root,
+            )
+            return
+        run_category_editor_ui(root, input_dir=in_dir, output_dir=out_dir)
+
+    btn_categories.configure(command=on_categories)
 
     def validate_paths(*_args) -> bool:
         return validate_paths_ui(

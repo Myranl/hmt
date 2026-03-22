@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "input_root": "/Users/kseniialavrova/Documents/projects/HISTOLOGY/input",
+  "granularity": "leaf_folder",
+  "columns": [
+    {
+      "id": "sex",
+      "title": "sex",
+      "values": [
+        "F",
+        "M"
+      ]
+    },
+    {
+      "id": "dose",
+      "title": "dose",
+      "values": [
+        "sal",
+        "lps"
+      ]
+    }
+  ],
+  "assignments": {
+    "TB_P28/Females": {
+      "sex": "F"
+    },
+    "TB_P90/females": {
+      "sex": "F"
+    },
+    "TB_P28/Males": {
+      "sex": "M"
+    },
+    "TB_P90/males": {
+      "sex": "M"
+    },
+    "TB_P28/Females/H09": {
+      "dose": "sal"
+    },
+    "TB_P28/Females/K13": {
+      "dose": "lps"
+    },
+    "TB_P28/Females/J08": {
+      "dose": "sal"
+    },
+    "TB_P28/Females/M01": {
+      "dose": "sal"
+    },
+    "TB_P28/Females/M13": {
+      "dose": "lps"
+    },
+    "TB_P28/Females/N01": {
+      "dose": "lps"
+    },
+    "TB_P28/Females/N03": {
+      "dose": "sal"
+    },
+    "TB_P28/Females/T05": {
+      "dose": "sal"
+    },
+    "TB_P28/Females/T07": {
+      "dose": "sal"
+    },
+    "TB_P28/Females/U11": {
+      "dose": "lps"
+    },
+    "TB_P28/Females/U13": {
+      "dose": "lps"
+    },
+    "TB_P28/Females/W10": {
+      "dose": "lps"
+    },
+    "TB_P28/Females/W12": {
+      "dose": "sal"
+    },
+    "TB_P28/Females/X12": {
+      "dose": "sal"
+    },
+    "TB_P28/Females/Z09": {
+      "dose": "lps"
+    },
+    "TB_P28/Females/Z10": {
+      "dose": "lps"
+    },
+    "TB_P28/Males/I04": {
+      "dose": "lps"
+    },
+    "TB_P28/Males/K10": {
+      "dose": "sal"
+    },
+    "TB_P28/Males/N04": {
+      "dose": "sal"
+    },
+    "TB_P28/Males/T02": {
+      "dose": "sal"
+    },
+    "TB_P28/Males/W05": {
+      "dose": "lps"
+    },
+    "TB_P90/females/G07": {
+      "dose": "sal"
+    },
+    "TB_P90/females/I06": {
+      "dose": "sal"
+    },
+    "TB_P90/females/J08": {
+      "dose": "sal"
+    },
+    "TB_P90/females/L05": {
+      "dose": "lps"
+    },
+    "TB_P90/females/M01": {
+      "dose": "sal"
+    },
+    "TB_P90/females/O05": {
+      "dose": "sal"
+    },
+    "TB_P90/females/U11": {
+      "dose": "lps"
+    },
+    "TB_P90/males/T02": {
+      "dose": "sal"
+    },
+    "TB_P90/males/O02": {
+      "dose": "lps"
+    },
+    "TB_P90/males/M05": {
+      "dose": "lps"
+    },
+    "TB_P90/males/L01": {
+      "dose": "lps"
+    },
+    "TB_P90/males/K02": {
+      "dose": "lps"
+    },
+    "TB_P90/males/J02": {
+      "dose": "sal"
+    },
+    "TB_P90/males/I04": {
+      "dose": "lps"
+    },
+    "TB_P90/males/G01": {
+      "dose": "lps"
+    }
+  }
+}

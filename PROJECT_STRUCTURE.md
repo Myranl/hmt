@@ -6,7 +6,13 @@ HMT/
 ├── requirements.txt
 │
 ├── core/                   # Shared logic, validation
-│   └── validation.py       # Path validation, writing results.meta
+│   ├── validation.py       # Path validation, writing results.meta
+│   └── categories/         # User-defined CSV columns (assignments JSON + resolve)
+│       ├── schema.py       # CategoryColumn / CategoryStore
+│       ├── paths.py        # Relative POSIX keys under input root
+│       ├── store_io.py     # Load/save category_assignments.json
+│       ├── resolve.py      # Merge labels into pipeline rows (+ file overrides in leaf mode)
+│       └── mutations.py    # Rename column/value, move paths between values
 │
 ├── pipeline/               # Processing orchestration
 │   ├── batch.py            # Loop over images, write results.csv
@@ -51,4 +57,9 @@ HMT/
     │   └── run_ui_and_get_params.py  # Combined step: ROI + sketch
     │
     ├── pick_components.py  # Hippocampus component selection (clicks, Cut/Add)
-    └── review_ui.py        # Review and re-edit selection
+    ├── review_ui.py        # Review and re-edit selection
+    │
+    └── categories/         # Group / experiment metadata (separate CSV columns)
+        ├── category_editor_ui.py  # Tabs: tree assign + by-value overview
+        ├── overview_panel.py        # Buckets per value, rename, move
+        └── input_scan.py            # Image scan for the editor tree
